@@ -177,9 +177,11 @@ def _semver_or_calver(value: Any, ctx: ValidatorContext, params: dict) -> tuple[
 
 @register("hash_algorithm_in_set")
 def _hash_algorithm_in_set(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
-    allowed = {a.replace("-", "").lower() for a in params.get("algs", [])}
+    allowed = {str(a).replace("-", "").lower() for a in params.get("algs", [])}
     hashes = value if isinstance(value, dict) else getattr(ctx.target, "hashes", {}) or {}
-    present = {k.replace("-", "").lower() for k in hashes}
+    # str() before replace(): a document is free to put anything in an algorithm
+    # position, including null, and a validator must answer rather than raise.
+    present = {str(k).replace("-", "").lower() for k in hashes}
     if not present:
         return False, "no hashes present"
     if allowed and not (present & allowed):

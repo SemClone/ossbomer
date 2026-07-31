@@ -52,7 +52,29 @@ def _run_validators(value: Any, ctx: V.ValidatorContext, specs: list[Any]) -> tu
             params = {k: v for k, v in spec.items() if k != "name"}
         else:
             continue
-        ok, msg = V.get(name)(value, ctx, params)
+        # A validator must answer, not raise. SBOM fields carry whatever the
+        # generator put there, and third parties register their own validators
+        # through the `ossbomer.validators` entry point, so the code in this
+        # loop is not all auditable from here.
+        #
+        # A crash here previously took down the entire run: six profiles exited
+        # 2 on a real document because one component declared its licence as
+        # "MIT (http://mootools.net/license.txt)" and license-expression raised
+        # inside its own error handler. One malformed field in one component
+        # should cost that component a finding, not the whole report.
+        #
+        # The lookup stays outside the guard on purpose. A profile naming a
+        # validator that does not exist is a configuration error, and reporting
+        # it as a finding would blame the document for the operator's typo.
+        validator = V.get(name)
+        # ProfileError likewise propagates: it means the profile is malformed.
+        try:
+            ok, msg = validator(value, ctx, params)
+        except ProfileError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            return False, (f"{name}: validator could not evaluate this value "
+                           f"({type(exc).__name__}: {exc})")
         if not ok:
             return False, f"{name}: {msg}"
     return True, ""

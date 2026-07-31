@@ -124,6 +124,17 @@ different results than they did on 2.0.0. The specifics are immediately below.
   checks 8 of 21 fields (13 of the rest are organisational judgements no SBOM
   carries), and `openchain-telco-v1.1` cannot reject a non-SPDX document even
   though §3.1 requires SPDX.
+- **A validator can no longer end a run.** SBOM fields carry whatever the
+  generator put there, and third parties register their own validators through
+  the `ossbomer.validators` entry point, so not all code in that loop is
+  auditable here. An exception raised while evaluating a value now becomes a
+  FAIL finding naming the validator and the error, instead of exiting 2. One
+  malformed field in one component costs that component a finding, not the whole
+  report. `ProfileError` and an unknown validator name still propagate: those
+  are configuration errors, and reporting them as findings would blame the
+  document for the operator's mistake.
+- `hash_algorithm_in_set` raised `AttributeError` when a hash entry used a null
+  algorithm key. Algorithm names are coerced with `str()` before comparison.
 - **SPDX parsing follows the bytes, not the filename.** `detect_file` reads the
   content, but `spdx_tools`' `parse_anything` dispatches on the extension, so the
   two could disagree. A tag-value document named `.json` was detected correctly
