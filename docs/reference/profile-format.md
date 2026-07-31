@@ -112,6 +112,46 @@ component for `component`, and over the dependency graph for `dependency`.
 Available validators are listed by `ossbomer validators` and in the
 [CLI reference]({{ site.baseurl }}/reference/cli).
 
+### What `field` can name
+
+`field` names an attribute on the normalized document, not a path in the source
+file, so one rule works across SPDX and CycloneDX. Both formats are mapped onto
+the same shape.
+
+Document scope:
+
+| Field | Holds |
+| ----- | ----- |
+| `creators` | Everyone credited with creating the SBOM: people, organizations and tools. |
+| `tools` | The tool-only subset of `creators`. |
+| `tool_versions` | Versions of those tools, kept separate so a rule can ask whether one was declared at all. |
+| `timestamp` | When the SBOM data was last changed. |
+| `sbom_version` | The revision of the SBOM document. Not the spec version, and not the version of what it describes. |
+| `lifecycles` | The lifecycle phase it was generated in, such as `build`. CycloneDX 1.5+ only. |
+| `name`, `namespace`, `supplier`, `data_license` | Document metadata. |
+
+Component scope:
+
+| Field | Holds |
+| ----- | ----- |
+| `name`, `version`, `type` | Component identity. |
+| `purl`, `cpe`, `bom_ref` | Identifiers. |
+| `supplier`, `author`, `publisher` | Who produced it. |
+| `licenses` | Effective license strings: the normalized SPDX form where one resolved, otherwise the raw text. |
+| `license_declarations` | The full record per declaration: raw text, which slot it came from, what it normalized to and how. What `license_spdx_normalized` reads. |
+| `hashes` | Algorithm to digest. |
+| `external_refs`, `properties` | Passed through from the source. |
+
+Anything not listed falls back to a dotted lookup into the component's raw source
+mapping, so `field: raw.someVendorExtension` works for data the IR does not model.
+
+{: .note }
+Not every field exists in every format. SPDX 2.x has no document-version or
+lifecycle-phase field, so `sbom_version` and `lifecycles` are empty there and a
+rule requiring them fails for SPDX 2.x documents. That is a true statement about
+the format rather than a defect in the document, and `cisa-2026-min` reports it
+as such.
+
 ## license_policy
 
 Covered in full on [License policy]({{ site.baseurl }}/guide/license-policy).
@@ -166,3 +206,10 @@ ossbomer validate --profile acme-shipping-bar --file sbom.json
 The order is `--profile-path`, then `OSSBOMER_PROFILE_PATH`, then the bundled
 catalog. `--profile` also accepts a path to a file directly, which skips the search
 entirely.
+
+## Environment variables
+
+| Variable | Effect |
+| -------- | ------ |
+| `OSSBOMER_PROFILE_PATH` | Extra profile directories, `os.pathsep`-separated. Searched before the bundled catalog. |
+| `OSSBOMER_LICENSE_ALIASES` | Extra license normalization tables, `os.pathsep`-separated. See [License policy]({{ site.baseurl }}/guide/license-policy). |
