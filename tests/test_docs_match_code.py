@@ -41,6 +41,34 @@ def test_every_usable_profile_is_listed_in_the_guide():
         assert f"`{pid}`" in listed, f"{pid} is not in the profiles guide"
 
 
+def test_the_guide_does_not_describe_a_profile_as_something_it_is_not():
+    """Listing the id is not enough. The catalog said `fedramp-sbom` was
+    "FedRAMP SBOM requirements" while the profile had been renamed precisely
+    because FedRAMP publishes no SBOM requirements, so the table asserted the
+    claim the code had stopped making.
+
+    Checks the first significant word of the profile's own name appears in its
+    row. Loose on purpose: the guide labels a standard, not the profile, so
+    they will not match verbatim.
+    """
+    rows = {}
+    for line in (DOCS / "guide" / "profiles.md").read_text(encoding="utf-8").splitlines():
+        if line.startswith("| `") and "|" in line[3:]:
+            pid = line.split("`")[1]
+            rows[pid] = line
+
+    for pid in list_catalog():
+        profile = load_profile(pid)
+        if profile.withdrawn or pid not in rows:
+            continue
+        # The word that carries the claim: the standard or body being encoded.
+        head = profile.name.split("(")[0].split(",")[0].strip()
+        first = head.split()[0]
+        assert first.lower() in rows[pid].lower(), (
+            f"{pid} is described as {rows[pid].split('|')[2].strip()!r} "
+            f"but the profile calls itself {profile.name!r}")
+
+
 def test_withdrawn_profiles_are_marked_as_such_in_the_guide():
     listed = (DOCS / "guide" / "profiles.md").read_text(encoding="utf-8")
     for pid in list_catalog():

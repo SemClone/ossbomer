@@ -30,7 +30,7 @@ to run. Run `ossbomer profiles` to see them locally.
 | `bsi-tr-03183-v2.1` | BSI TR-03183 Part 2 v2.1 |
 | `cert-in-v2.0` | India CERT-In SBOM Guidelines v2.0 |
 | `openchain-telco-v1.1` | OpenChain Telco SBOM Quality v1.1 |
-| `fedramp-sbom` | FedRAMP SBOM requirements |
+| `fedramp-sbom` | FedRAMP SBOM expectations, via EO 14028 and the CISA minimum elements |
 | `aibom-v0.1` | AI Bill of Materials (net-new, advisory) |
 | `eu-cra-annex-vii` | **Withdrawn.** Cited clauses that do not exist; refuses to run and exits 2. Use `eu-cra-annex-i`. |
 

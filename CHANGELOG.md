@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- The profiles guide described `fedramp-sbom` as "FedRAMP SBOM requirements".
+  The profile was renamed away from that wording precisely because FedRAMP
+  publishes no SBOM requirements, so the catalog table was still asserting the
+  claim the code had stopped making.
+- `tests/conformance/test_sbom.cyclonedx.1.4.xml` could not be loaded by any
+  profile. Its `dependencies` block referenced a `bom-ref` that no component
+  declared, so `cyclonedx-python-lib` refused the document. Its JSON twin had
+  the same defect and only loaded because the JSON path does not check
+  referential integrity. Both carry `bom-ref` now and produce identical results.
+- `test_docs_match_code.py` compared only whether a profile id appeared in the
+  guide, so a table could name every profile and still describe one wrongly. It
+  compares the label against the profile's own name now.
+
 ## [2.2.0] - 2026-07-31
 
 ### Fixed
