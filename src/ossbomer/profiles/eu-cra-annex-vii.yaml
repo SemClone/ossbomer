@@ -1,90 +1,27 @@
+# WITHDRAWN. Do not use. Kept only so `--profile eu-cra-annex-vii` fails loudly
+# instead of silently resolving to nothing for anyone with it in a CI pipeline.
+#
+# This profile cited Annex VII §8(a), §8(b) and §8(c). Those sub-points do not
+# exist. Annex VII(8) is a single sentence, quoted in full:
+#
+#   "where applicable, the software bill of materials, further to a reasoned
+#    request from a market surveillance authority provided that it is necessary
+#    in order for that authority to be able to check compliance with the
+#    essential cybersecurity requirements set out in Annex I."
+#
+# It names no data field. It is a disclosure trigger, not a content spec. The
+# eight data-field rules previously here were not derived from the Regulation.
+#
+# The clause that does constrain SBOM content is Annex I Part II(1). Use
+# `eu-cra-annex-i`.
 id: eu-cra-annex-vii
-name: EU Cyber Resilience Act, Annex VII §8
-version: "2024-11"
+name: "WITHDRAWN: cited a clause that does not exist -- use eu-cra-annex-i"
+version: "withdrawn"
 sources:
   - name: EU CRA
-    ref: "Regulation (EU) 2024/2847, Annex VII (8)"
-    url: https://eur-lex.europa.eu/eli/reg/2024/2847
+    ref: "WITHDRAWN. Annex VII(8) specifies no SBOM data fields; the cited sub-points §8(a)-(c) do not exist in Regulation (EU) 2024/2847. Superseded by the eu-cra-annex-i profile, which encodes Annex I Part II(1)."
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202402847
 
-schema:
-  min_versions:
-    spdx: "2.3"
-    cyclonedx: "1.5"
-  deprecated_versions_forbidden: true
-
-rules:
-  - id: cra-sbom-author
-    scope: document
-    severity: MUST
-    category: Provenance
-    citation: "CRA Annex VII §8(a)"
-    field: creators
-    validators: [present]
-
-  - id: cra-timestamp
-    scope: document
-    severity: MUST
-    category: Freshness
-    citation: "CRA Annex VII §8"
-    field: timestamp
-    validators: [present, rfc3339_utc]
-
-  - id: cra-component-name
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "CRA Annex VII §8(b)"
-    field: name
-    validators: [present, non_placeholder]
-
-  - id: cra-component-version
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "CRA Annex VII §8(b)"
-    field: version
-    validators: [present, non_placeholder]
-
-  - id: cra-component-identifier
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "CRA Annex VII §8(c)"
-    field: purl
-    validators: [present, purl_wellformed]
-
-  - id: cra-component-license
-    scope: component
-    severity: MUST
-    category: Accuracy
-    citation: "CRA Annex VII §8 (licence)"
-    field: licenses
-    validators: [present, spdx_license_expression]
-
-  - id: cra-component-hash
-    scope: component
-    severity: MUST_WHERE_AVAILABLE
-    category: Accuracy
-    citation: "CRA Annex VII §8 (integrity)"
-    field: hashes
-    validators:
-      - name: hash_algorithm_in_set
-        algs: [SHA-256, SHA-512]
-
-  - id: cra-dependency-completeness
-    scope: dependency
-    severity: MUST
-    category: Completeness
-    citation: "CRA Annex VII §8 (dependencies)"
-    validators: [dependency_completeness]
-
-scoring:
-  weights:
-    Completeness: 0.25
-    Accuracy: 0.30
-    Consistency: 0.15
-    Provenance: 0.20
-    Freshness: 0.10
-  thresholds:
-    noassertion_density_max: 0.10
-    license_normalization_min: 0.90
+# A profile with no rules asserts nothing. That is the point: a run against this
+# id must not produce a conformance claim of any kind.
+rules: []

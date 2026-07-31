@@ -35,7 +35,7 @@ You pick a *profile*. A profile is one YAML file that binds all three, so
 and a spreadsheet.
 
 ```bash
-ossbomer validate --profile eu-cra-annex-vii --file sbom.json
+ossbomer validate --profile eu-cra-annex-i --file sbom.json
 ```
 
 Each profile returns its own verdict and its own quality score. Ask for four

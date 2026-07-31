@@ -38,18 +38,43 @@ follow [Semantic Versioning](https://semver.org/).
   Inheriting would put 2021 rule ids and 2021 citations inside a report claiming
   conformance with the 2026 document.
 
+### Fixed
+- **`eu-cra-annex-vii` cited clauses that do not exist and has been withdrawn.**
+  It carried rules citing "CRA Annex VII §8(a)", "§8(b)" and "§8(c)". Annex VII
+  point 8 of Regulation (EU) 2024/2847 is a single sentence with no sub-points:
+  "where applicable, the software bill of materials, further to a reasoned
+  request from a market surveillance authority provided that it is necessary in
+  order for that authority to be able to check compliance with the essential
+  cybersecurity requirements set out in Annex I." It names no data field and is
+  a disclosure trigger, not a content specification. The eight data-field rules
+  were not derived from the Regulation.
+- **New `eu-cra-annex-i` profile** encoding Annex I Part II(1), the clause that
+  does constrain SBOM content: "identify and document vulnerabilities and
+  components ... including by drawing up a software bill of materials in a
+  commonly used and machine-readable format covering at the very least the
+  top-level dependencies of the products." That yields four rules. The removed
+  author, timestamp, licence and hash rules have no basis in the CRA and are not
+  recited under a CRA citation.
+- The `eu-cra-annex-vii` id resolves to an empty, clearly-labelled withdrawn
+  profile rather than being deleted, so it stays loadable for anyone with it
+  pinned in CI while asserting nothing.
+
 ### Notes on severity
-- Elements the document lets an author declare unknown (Component Producer,
-  Component Version, Component License, Component Hash Value, Component Hash
-  Algorithm) are `MUST_WHERE_AVAILABLE`: a declared NOASSERTION warns, a wrong
-  value fails.
-- SBOM Author Signature, SBOM Generation Context, SBOM Tool Version and SBOM
-  Version are `SHOULD`. SPDX 2.x has no field for document version or lifecycle
-  phase, and most generators cannot sign. Encoding those as MUST would fail
-  every real SBOM.
-- Component Hash Algorithm accepts only SHA-256 and above. SHA-1 and MD5 are off
-  NIST's approved list, and the document asks for an algorithm "approved by a
-  relevant authority, such as NIST."
+- Every rule in `cisa-2026-min` is MUST. Appendix A is a flat table of seventeen
+  data fields and the document never marks one optional, recommended,
+  conditional or where-available; those words do not appear in it. Most real
+  SBOMs fail this profile today, which is the finding rather than a defect. The
+  quality score already carries the gradient: a document can read FAIL at 88/100
+  and know it is close.
+- Where the document lets an author say a value is unknown, that is encoded with
+  a new `declared` validator rather than a weaker severity. `declared` passes on
+  an explicit NOASSERTION/NONE and fails on silence, which is what "Explicitly
+  Identifying Unknown Information" asks for. `present` cannot express it: it
+  treats an explicit null as absence and fails it.
+- SPDX 2.x cannot express SBOM Version or SBOM Generation Context, so SPDX 2.x
+  documents fail `cisa-2026-min` on those two rules. That is a true and
+  actionable statement about the format (move to CycloneDX 1.5+ or SPDX 3.0),
+  not a reason to downgrade the rules until they stop being reported.
 
 ## [2.0.0] - 2026-07-30
 

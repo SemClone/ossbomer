@@ -153,14 +153,54 @@ def test_metadata_rules_pass_when_the_data_is_present(tmp_path, rule_id, field):
     assert finding.verdict.value == "PASS", f"{rule_id}: {finding.message}"
 
 
-def test_spdx2_cannot_express_generation_context_so_it_warns():
-    """SPDX 2.x has no lifecycle field. The rule is SHOULD precisely so this is
-    a warning about the format's limits, not a failure of the document."""
+def test_every_rule_is_must():
+    """Appendix A is a flat table of seventeen. The document never marks one
+    optional, recommended, conditional or where-available. Grading on a curve
+    would make the profile claim CISA 2026 while encoding something easier."""
+    profile = load_profile("cisa-2026-min")
+    weaker = [r.id for r in profile.rules if r.severity.value != "MUST"]
+    assert not weaker, f"not a minimum any more: {weaker}"
+
+
+def test_spdx2_cannot_express_generation_context_so_it_fails():
+    """SPDX 2.x has no lifecycle field, so it cannot meet the 2026 minimum.
+    That is a true and actionable finding (move to CycloneDX 1.5+ or SPDX 3.0),
+    not something to downgrade until it stops being reported."""
     (result,) = run(SPDX_23, ["cisa-2026-min"])
     finding = next(f for f in result.findings
                    if f.rule_id == "cisa26-sbom-generation-context")
-    assert finding.verdict.value == "WARN"
-    assert result.must_violations == 0 or finding.severity.value == "SHOULD"
+    assert finding.verdict.value == "FAIL"
+    assert result.verdict.value == "FAIL"
+
+
+def test_explicit_unknown_satisfies_the_fields_that_allow_it(tmp_path):
+    """"Explicitly Identifying Unknown Information": an author who cannot supply
+    a field must say so. NOASSERTION is compliant, silence is not."""
+    doc = _minimal_cdx(timestamp="2026-07-30T00:00:00Z")
+    doc["components"] = [{
+        "type": "library", "name": "left-pad", "version": "NOASSERTION",
+        "purl": "pkg:npm/left-pad@1.3.0",
+        "supplier": {"name": "NOASSERTION"},
+    }]
+    (result,) = run(_write(tmp_path, doc), ["cisa-2026-min"])
+    for rule_id in ("cisa26-component-version", "cisa26-component-producer"):
+        finding = next(f for f in result.findings if f.rule_id == rule_id)
+        assert finding.verdict.value == "PASS", f"{rule_id}: {finding.message}"
+
+
+def test_silence_fails_the_fields_that_allow_an_explicit_unknown(tmp_path):
+    """The mirror of the above. A field simply left out is not a declared
+    unknown, and must not pass by omission."""
+    doc = _minimal_cdx(timestamp="2026-07-30T00:00:00Z")
+    doc["components"] = [{
+        "type": "library", "name": "left-pad", "version": "1.3.0",
+        "purl": "pkg:npm/left-pad@1.3.0",
+    }]
+    (result,) = run(_write(tmp_path, doc), ["cisa-2026-min"])
+    for rule_id in ("cisa26-component-producer", "cisa26-component-license",
+                    "cisa26-component-hash-value"):
+        finding = next(f for f in result.findings if f.rule_id == rule_id)
+        assert finding.verdict.value == "FAIL", f"{rule_id} passed on silence"
 
 
 def test_weak_hash_algorithm_is_not_accepted(tmp_path):

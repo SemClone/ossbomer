@@ -16,7 +16,7 @@ use case.
 
 ## The catalog
 
-Thirteen profiles ship with the tool. Run `ossbomer profiles` to see them locally.
+Fourteen profiles ship with the tool. Run `ossbomer profiles` to see them locally.
 
 ### Regulations and programs
 
@@ -25,7 +25,7 @@ Thirteen profiles ship with the tool. Run `ossbomer profiles` to see them locall
 | `cisa-2026-min` | CISA 2026 SBOM Minimum Elements |
 | `ntia-min-elements` | NTIA Minimum Elements for an SBOM (2021, superseded) |
 | `cisa-2025-min` | CISA 2025 Draft SBOM Minimum Elements (superseded) |
-| `eu-cra-annex-vii` | EU Cyber Resilience Act, Annex VII §8 |
+| `eu-cra-annex-i` | EU Cyber Resilience Act, Annex I Part II(1) |
 | `bsi-tr-03183-v2.1` | BSI TR-03183 Part 2 v2.1 |
 | `cert-in-v2.0` | India CERT-In SBOM Guidelines v2.0 |
 | `openchain-telco-v1.1` | OpenChain Telco SBOM Quality v1.1 |
@@ -69,7 +69,7 @@ By jurisdiction, what ships today:
 | Region | Covered by | Status |
 | ------ | ---------- | ------ |
 | United States | `cisa-2026-min`, `ntia-min-elements`, `fedramp-sbom` | Yes |
-| European Union | `eu-cra-annex-vii` | Yes |
+| European Union | `eu-cra-annex-i` | Yes |
 | Germany | `bsi-tr-03183-v2.1` | Yes |
 | India | `cert-in-v2.0` | Yes |
 | Telecom sector | `openchain-telco-v1.1` | Yes, sector rather than region |
@@ -91,7 +91,7 @@ of a properly cited regional profile are very welcome.
 ## Picking one
 
 Match the profile to the obligation you actually have. If you sell into the EU,
-`eu-cra-annex-vii`. If you are answering a US federal procurement question,
+`eu-cra-annex-i`. If you are answering a US federal procurement question,
 `ntia-min-elements` or `fedramp-sbom`. If a customer sent you a questionnaire
 citing BSI, `bsi-tr-03183-v2.1`.
 
@@ -99,7 +99,7 @@ Run several at once when you have several obligations. Each answers separately:
 
 ```bash
 ossbomer validate \
-  --profile eu-cra-annex-vii \
+  --profile eu-cra-annex-i \
   --profile ntia-min-elements \
   --file sbom.json
 ```
@@ -108,7 +108,7 @@ License profiles are orthogonal to the regulation ones, so pairing a regulation
 profile with the license profile matching how you ship is a common combination:
 
 ```bash
-ossbomer validate --profile eu-cra-annex-vii --profile license-mobile --file sbom.json
+ossbomer validate --profile eu-cra-annex-i --profile license-mobile --file sbom.json
 ```
 
 ## Rule severity
@@ -133,8 +133,8 @@ an internal standard without copying the public catalog into your repo:
 
 ```yaml
 id: acme-shipping-bar
-extends: [eu-cra-annex-vii, fedramp-sbom]
-excludes: [cra-component-hash]
+extends: [eu-cra-annex-i, fedramp-sbom]
+excludes: [cra-top-level-dependencies]
 rules:
   - id: acme-namespace-tag
     scope: component

@@ -206,7 +206,7 @@ def test_profile_can_override_the_deprecated_set():
 
 def test_the_two_shipped_profiles_that_declare_it_actually_enforce_it():
     from ossbomer.core.profile import load_profile
-    for pid in ("eu-cra-annex-vii", "bsi-tr-03183-v2.1"):
+    for pid in ("eu-cra-annex-i", "bsi-tr-03183-v2.1"):
         profile = load_profile(pid)
         assert profile.schema.deprecated_versions_forbidden is True
         findings = evaluate(_cdx("1.1"), profile)

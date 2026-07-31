@@ -15,7 +15,7 @@ import click
 from .._cli_shared import replaced_option, run_and_report
 
 # What the legacy command claimed to check, expressed as profiles.
-DEFAULT_PROFILES = ("ntia-min-elements", "eu-cra-annex-vii")
+DEFAULT_PROFILES = ("ntia-min-elements", "eu-cra-annex-i")
 
 
 @click.command()

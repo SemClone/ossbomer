@@ -19,7 +19,7 @@ The exit code is designed to be the gate, so most setups are one step.
 - name: Check the SBOM
   run: |
     pip install "ossbomer[oslc]"
-    ossbomer validate --profile eu-cra-annex-vii --file sbom.json
+    ossbomer validate --profile eu-cra-annex-i --file sbom.json
 ```
 
 Exit 0 means no profile came back FAIL. Exit 1 means at least one did. Exit 2
@@ -53,7 +53,7 @@ annotations on the pull request:
 
 ```yaml
 - name: Check the SBOM
-  run: ossbomer validate --profile eu-cra-annex-vii --file sbom.json --format sarif > ossbomer.sarif
+  run: ossbomer validate --profile eu-cra-annex-i --file sbom.json --format sarif > ossbomer.sarif
   continue-on-error: true
 
 - uses: github/codeql-action/upload-sarif@v3
@@ -70,7 +70,7 @@ One invocation, one report, separate verdicts:
 
 ```bash
 ossbomer validate \
-  --profile eu-cra-annex-vii \
+  --profile eu-cra-annex-i \
   --profile ntia-min-elements \
   --profile license-distribution \
   --file sbom.json \

@@ -249,6 +249,31 @@ def _known_unknowns_declared(value: Any, ctx: ValidatorContext, params: dict) ->
     return True, ""
 
 
+@register("declared")
+def _declared(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """Require a value OR an explicit statement that it is unknown.
+
+    This is CISA 2026 "Explicitly Identifying Unknown Information": if the author
+    cannot supply a field, they must say so rather than omit it. So NOASSERTION
+    passes and silence fails -- the opposite of `present`, which treats an
+    explicit null as absence.
+
+    Distinct from `known_unknowns_declared`, which only rejects `None` and so
+    lets an empty list through. A component with `licenses: []` said nothing at
+    all, which is exactly the silence this rule exists to catch.
+    """
+    if value is None:
+        return False, "silent gap: no value and no explicit NOASSERTION/NONE"
+    # Checked before _as_list: that helper wraps a non-sequence in a one-item
+    # list, so an empty dict (`hashes: {}`) would come back as `[{}]` and read as
+    # populated. Empty containers and empty strings are silence.
+    if isinstance(value, (dict, list, tuple, set, str)) and not value:
+        return False, "silent gap: no value and no explicit NOASSERTION/NONE"
+    if not _as_list(value):
+        return False, "silent gap: no value and no explicit NOASSERTION/NONE"
+    return True, ""
+
+
 # ---- plugin escape hatch -----------------------------------------------------
 
 def load_plugins() -> list[str]:

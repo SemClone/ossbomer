@@ -86,7 +86,7 @@ block:
 
 ```bash
 ossbomer validate \
-  --profile eu-cra-annex-vii \
+  --profile eu-cra-annex-i \
   --profile bsi-tr-03183-v2.1 \
   --file sbom.json
 ```
@@ -116,7 +116,7 @@ annotations. See [Using it in CI]({{ site.baseurl }}/guide/ci).
 ```python
 from ossbomer.core.runner import run
 
-for result in run("sbom.json", ["eu-cra-annex-vii", "ntia-min-elements"]):
+for result in run("sbom.json", ["eu-cra-annex-i", "ntia-min-elements"]):
     print(result.profile_id, result.verdict.value, result.score)
 ```
 
