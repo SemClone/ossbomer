@@ -78,3 +78,24 @@ def test_every_profile_names_a_source():
         assert profile.sources, f"{pid} has rules but names no source document"
         for source in profile.sources:
             assert source.get("ref"), f"{pid} has a source with no ref"
+
+
+def test_fedramp_invents_no_requirement_of_its_own():
+    """FedRAMP publishes no SBOM data field list. EO 14028 §4(e)(vii) requires an
+    SBOM and §4(f) delegates the field list to Commerce/NTIA, whose document CISA
+    now maintains. So the profile composes and adds nothing: a `fedramp-` rule id
+    would name a clause that does not exist."""
+    profile = load_profile("fedramp-sbom")
+    assert profile.rules, "composition resolved to nothing"
+    invented = [r.id for r in profile.rules if r.id.startswith("fedramp-")]
+    assert not invented, f"{invented} imply a FedRAMP clause that was never published"
+    for rule in profile.rules:
+        assert rule.citation.startswith("CISA 2026"), \
+            f"{rule.id} cites {rule.citation!r} rather than the inherited source"
+
+
+def test_fedramp_names_the_delegation_chain():
+    """The sources have to show why CISA's fields apply to a FedRAMP package,
+    otherwise the inheritance looks arbitrary."""
+    refs = " ".join(s.get("ref", "") for s in load_profile("fedramp-sbom").sources)
+    assert "14028" in refs and "4(f)" in refs

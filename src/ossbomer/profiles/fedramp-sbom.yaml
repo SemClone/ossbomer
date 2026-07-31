@@ -1,92 +1,39 @@
 id: fedramp-sbom
-name: FedRAMP SBOM requirements
-version: "2024-05"
+name: FedRAMP SBOM expectations (EO 14028, via the CISA minimum elements)
+version: "2026-07"
 sources:
-  - name: FedRAMP
-    ref: "FedRAMP Vulnerability Scanning Requirements / SBOM guidance, aligned to NTIA Minimum Elements and EO 14028 §4"
-    url: https://www.fedramp.gov/
-  - name: OMB / CISA
-    ref: "OMB M-22-18 and CISA Secure Software Development Attestation, SBOM data field expectations"
-    url: https://www.cisa.gov/sbom
+  - name: Executive Order 14028
+    ref: "Improving the Nation's Cybersecurity, 86 FR 26633, 2021-05-12. §4(e)(vii) requires providing a purchaser an SBOM for each product. §4(f) directs the Secretary of Commerce, acting through NTIA, to publish minimum elements for an SBOM."
+    url: https://www.govinfo.gov/content/pkg/FR-2021-05-17/pdf/2021-10460.pdf
+  - name: CISA
+    ref: "2026 Minimum Elements for a Software Bill of Materials (SBOM), 2026-07-29. The currently published minimum elements, updating and replacing the NTIA document issued under EO 14028 §4(f). This profile inherits its rules verbatim."
+    url: https://www.cisa.gov/resources-tools/resources/2026-minimum-elements-software-bill-materials-sbom
+  - name: NIST
+    ref: "SP 800-53 Rev. 5 SR-4 (Provenance) and SA-4 (Acquisition Process). FedRAMP baselines map to these controls; neither enumerates SBOM data fields."
+    url: https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
 
-schema:
-  min_versions:
-    spdx: "2.3"
-    cyclonedx: "1.5"
+# FedRAMP publishes no SBOM data field list of its own.
+#
+# This profile previously carried eight rules citing "FedRAMP SBOM: Author of
+# SBOM Data (NTIA-aligned)" and similar. No such FedRAMP clause exists. The
+# parenthetical was the tell: the rules were the NTIA field list relabelled, and
+# no section of any FedRAMP publication was cited because none defines these
+# fields. A PASS told the reader they had met a FedRAMP requirement that had
+# never been checked, because it had never been written down.
+#
+# The obligation is real; the field list is borrowed. EO 14028 §4(e)(vii)
+# requires an SBOM, and §4(f) delegates the field list to Commerce/NTIA. CISA's
+# 2026 document is the current successor to that publication. So this profile is
+# a composition, not a transcription: it inherits `cisa-2026-min` and adds
+# nothing. Findings report `cisa26-*` rule ids citing the CISA document, which is
+# where the requirement actually comes from. A `fedramp-*` rule id would imply a
+# source that does not exist.
+#
+# If your package was assessed against the 2021 NTIA elements rather than the
+# 2026 CISA ones, use `ntia-min-elements`. It is kept verbatim for that reason.
 
-rules:
-  - id: fedramp-author
-    scope: document
-    severity: MUST
-    category: Provenance
-    citation: "FedRAMP SBOM: Author of SBOM Data (NTIA-aligned)"
-    field: creators
-    validators: [present, non_placeholder]
+extends:
+  - cisa-2026-min
 
-  - id: fedramp-timestamp
-    scope: document
-    severity: MUST
-    category: Freshness
-    citation: "FedRAMP SBOM: Timestamp of SBOM creation"
-    field: timestamp
-    validators: [present, rfc3339_utc]
-
-  - id: fedramp-component-name
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "FedRAMP SBOM: Component Name"
-    field: name
-    validators: [present, non_placeholder]
-
-  - id: fedramp-component-version
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "FedRAMP SBOM: Version of the Component"
-    field: version
-    validators: [present, non_placeholder]
-
-  - id: fedramp-component-supplier
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "FedRAMP SBOM: Supplier Name"
-    field: supplier
-    validators: [present, non_placeholder]
-
-  - id: fedramp-component-identifier
-    scope: component
-    severity: MUST
-    category: Completeness
-    citation: "FedRAMP SBOM: Other Unique Identifiers (purl)"
-    field: purl
-    validators: [present, purl_wellformed]
-
-  - id: fedramp-component-hash
-    scope: component
-    severity: MUST_WHERE_AVAILABLE
-    category: Accuracy
-    citation: "FedRAMP SBOM: Cryptographic hash for component integrity"
-    field: hashes
-    validators:
-      - name: hash_algorithm_in_set
-        algs: [SHA-256, SHA-512]
-
-  - id: fedramp-dependency-completeness
-    scope: dependency
-    severity: MUST
-    category: Completeness
-    citation: "FedRAMP SBOM: Dependency Relationship"
-    validators: [dependency_completeness]
-
-scoring:
-  weights:
-    Completeness: 0.35
-    Accuracy: 0.25
-    Consistency: 0.15
-    Provenance: 0.15
-    Freshness: 0.10
-  thresholds:
-    version_coverage_min: 0.95
-    noassertion_density_max: 0.10
+# No `rules:` key on purpose. Anything added here would be an invented FedRAMP
+# requirement. Schema minima and scoring are inherited along with the rules.

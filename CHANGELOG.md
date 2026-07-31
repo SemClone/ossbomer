@@ -81,8 +81,14 @@ follow [Semantic Versioning](https://semver.org/).
   reject CycloneDX, which §3.1 forbids. `cert-in-v2.0` covers eight of the
   twenty-one fields in Table 5. Both name the missing fields in a comment,
   because a silent gap reads as coverage.
-- `fedramp-sbom` is unchanged but documented: no FedRAMP publication defining
-  SBOM data fields has been located, and its rules carry no clause citation.
+  - `fedramp-sbom` carried eight rules citing "FedRAMP SBOM: Author of SBOM Data
+    (NTIA-aligned)" and similar. FedRAMP publishes no SBOM data field list; the
+    parenthetical was the tell that the rules were the NTIA list relabelled. The
+    obligation is real but delegated: EO 14028 §4(e)(vii) requires an SBOM and
+    §4(f) directs Commerce, through NTIA, to publish the minimum elements, which
+    is the document CISA now maintains. The profile is a composition now,
+    inheriting `cisa-2026-min` and adding nothing, so findings carry `cisa26-*`
+    ids citing the document the requirement actually comes from.
 
 ### Added
 - `docs/sources/` records every document a profile was transcribed from, with
