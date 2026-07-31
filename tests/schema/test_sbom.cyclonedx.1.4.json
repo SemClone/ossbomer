@@ -1,0 +1,58 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:123e4567-e89b-12d3-a456-426614174000",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-02-01T12:00:00Z",
+    "tools": [
+      {
+        "vendor": "Example Corp",
+        "name": "CycloneDX Generator",
+        "version": "1.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "example-app",
+      "version": "2.0.0",
+      "purl": "pkg:npm/example-app@2.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "example-library",
+      "version": "1.2.3",
+      "purl": "pkg:maven/com.example/library@1.2.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3a7bd3e2360f6b9b1ff643b5b1d67e7aef9dbfcd0b5ad1d3b4f125e9e55a1b6a"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:npm/example-app@2.0.0",
+      "dependsOn": [
+        "pkg:maven/com.example/library@1.2.3"
+      ]
+    }
+  ]
+}

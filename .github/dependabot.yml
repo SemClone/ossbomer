@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # ossbomer is a library, not an application. Its pyproject declares floors
+  # (">=X") rather than exact versions, and there is no lockfile. Dependabot
+  # reads a floor as something to raise, so version updates here keep proposing
+  # a narrower supported range -- that costs consumers co-installability and
+  # gains this project nothing, since CI already resolves latest on every run.
+  #
+  # A limit of 0 disables version-update PRs. Security updates are driven by
+  # Dependabot alerts rather than by this file, so they still come through --
+  # those are the pip updates actually worth acting on.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+
+  # Actions are pinned to an exact major, so these updates are real and worth
+  # taking.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

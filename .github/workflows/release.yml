@@ -1,0 +1,126 @@
+name: Release
+
+# Publishes to PyPI via a Trusted Publisher (OIDC, no API token).
+# Configure on PyPI: project 'ossbomer' -> Publishing -> add GitHub publisher
+#   owner: SemClone           repo: ossbomer
+#   workflow: release.yml      environment: pypi
+# Then create a GitHub Release (tag e.g. v2.0.0) to trigger publishing.
+#
+# Running this by hand (workflow_dispatch) is a DRY RUN by default: it builds,
+# checks the version, round-trips the artifact and smoke-tests the wheel, but
+# does not publish. Publishing by hand requires ticking the `publish` input.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to PyPI. Leave unchecked for a dry run."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Verify the built version
+        run: |
+          WHEEL_VERSION="$(ls dist/*.whl | sed -E 's/.*ossbomer-([0-9.]+)-.*/\1/')"
+          PROJECT_VERSION="$(python -c "
+          import tomllib
+          print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])
+          ")"
+          echo "wheel=$WHEEL_VERSION pyproject=$PROJECT_VERSION"
+          test "$WHEEL_VERSION" = "$PROJECT_VERSION" \
+            || { echo "wheel/pyproject version mismatch"; exit 1; }
+
+          # On a real release the tag is authoritative too.
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            echo "tag=$TAG"
+            test "$WHEEL_VERSION" = "$TAG" \
+              || { echo "version/tag mismatch"; exit 1; }
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+
+  # Runs on every trigger, including dry runs. This is what keeps the artifact
+  # round-trip and the wheel itself from being first exercised during an actual
+  # release, when a failure is most expensive.
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Check both distributions came back
+        run: |
+          ls -l dist/
+          test -n "$(ls dist/*.whl 2>/dev/null)"    || { echo "no wheel";  exit 1; }
+          test -n "$(ls dist/*.tar.gz 2>/dev/null)" || { echo "no sdist";  exit 1; }
+      - name: Install the wheel in a clean venv and smoke-test the CLI
+        run: |
+          python -m venv /tmp/relcheck
+          /tmp/relcheck/bin/pip install --upgrade pip
+          /tmp/relcheck/bin/pip install dist/*.whl
+          echo "--- version ---";    /tmp/relcheck/bin/ossbomer --version
+          echo "--- profiles ---";   /tmp/relcheck/bin/ossbomer profiles
+          echo "--- validators ---"; /tmp/relcheck/bin/ossbomer validators
+          echo "--- validate ---"
+          # Run from a directory that is not the repo, so packaged data files
+          # are resolved from the installation rather than the source tree.
+          cd /tmp
+          # Steps run under `bash -e`, so capture the status rather than letting
+          # a non-zero exit abort the step: a FAIL verdict exits 1 and is a
+          # legitimate outcome here. Anything above 1 is a real failure.
+          rc=0
+          /tmp/relcheck/bin/ossbomer validate --format json \
+            --profile ntia-min-elements \
+            --file "$GITHUB_WORKSPACE/tests/fixtures/cyclonedx/valid/cdx-1.6.json" \
+            > /tmp/out.json || rc=$?
+          echo "cli exit=$rc"
+          test "$rc" -le 1 || { echo "CLI failed with exit $rc"; exit 1; }
+          python -c "
+          import json
+          results = json.load(open('/tmp/out.json'))
+          assert results, 'empty report'
+          print('report ok:', json.dumps(results)[:200])
+          "
+
+  publish:
+    needs: [build, verify]
+    # A manual run publishes only when explicitly asked. Without this, anyone
+    # clicking 'Run workflow' would publish whatever is currently on main.
+    if: github.event_name == 'release' || inputs.publish
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # required for Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

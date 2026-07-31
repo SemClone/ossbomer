@@ -1,0 +1,163 @@
+{
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.4",
+    "serialNumber": "urn:uuid:123e4567-e89b-12d3-a456-426614174001",
+    "version": 1,
+    "metadata": {
+        "timestamp": "2025-02-01T12:00:00Z",
+        "tools": [
+            {
+                "vendor": "OSSBOMER",
+                "name": "OSSBOMER Generator",
+                "version": "1.0"
+            }
+        ],
+        "component": {
+            "type": "application",
+            "name": "test-app",
+            "version": "1.0.0",
+            "purl": "pkg:generic/test-app@1.0.0",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ],
+            "publisher": "OSSBOMER Project",
+            "sbomUri": "https://example.com/sboms/test-app-1.0.0.cdx.json",
+            "sourceUri": "https://github.com/example/test-app",
+            "uri": "https://example.com/downloads/test-app-1.0.0.tar.gz",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "dummyhash123"
+                }
+            ]
+        },
+        "licenses": [
+            {
+                "license": {
+                    "id": "MIT"
+                }
+            }
+        ]
+    },
+    "components": [
+        {
+            "type": "library",
+            "name": "openssl",
+            "version": "1.1.1k",
+            "purl": "pkg:rpm/fedora/openssl@1.1.1k",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "OpenSSL"
+                    }
+                }
+            ],
+            "hashes": [
+                {
+                    "alg": "SHA1",
+                    "content": "b8f8f8a2935fd4e7c8a6b3a4f2f4b9cd9d4c8b5a"
+                },
+                {
+                    "alg": "SHA256",
+                    "content": "e2fc714c4727ee9395f324cd2e7f331f23215e4d4c4d4d8b8c8b8f8f8f8f8f8f"
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "name": "cyrus-sasl-ldap",
+            "version": "2.1.26",
+            "purl": "pkg:rpm/amzn/cyrus-sasl-ldap@2.1.26",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "GPL-3.0"
+                    }
+                }
+            ],
+            "hashes": [
+                {
+                    "alg": "SHA1",
+                    "content": "c9e6848d9cc6f9588e0e7a75423f9a3aed3f10db"
+                },
+                {
+                    "alg": "SHA256",
+                    "content": "532e830fa8a2d9627dd4ab7dbd9af33e39d5928a00d33f08cc6e246b5f032fb2"
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "name": "curl",
+            "version": "7.76.1",
+            "purl": "pkg:rpm/fedora/curl@7.76.1",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ],
+            "hashes": [
+                {
+                    "alg": "SHA1",
+                    "content": "ad18a79a69d2d3ad128a6d98a3215f6bb06e39a2"
+                },
+                {
+                    "alg": "SHA256",
+                    "content": "f3b8e9a5d6f1a1c1d1e9d4b4b8a6a5d1e9c8a5f3a8d6c1a5e9a6b8f3a5d6e1c9"
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "name": "log4j",
+            "version": "2.14.1",
+            "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "Apache-2.0"
+                    }
+                }
+            ],
+            "hashes": [
+                {
+                    "alg": "SHA1",
+                    "content": "d5b8a8b9d3f1a4e9a5d6c8b4a8f1e9c3d5b8a9a4"
+                },
+                {
+                    "alg": "SHA256",
+                    "content": "c5b8a9f1e9d4a5d6c8b4a8f1e9c3d5b8a9a4d3f1a4e9a5d6c8b4a8f1e9c3d5b8"
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "name": "nginx",
+            "version": "1.20.0",
+            "purl": "pkg:generic/nginx@1.20.0",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "BSD-2-Clause"
+                    }
+                }
+            ],
+            "hashes": [
+                {
+                    "alg": "SHA1",
+                    "content": "a5d6c8b4a8f1e9c3d5b8a9a4d3f1a4e9a5d6c8b4"
+                },
+                {
+                    "alg": "SHA256",
+                    "content": "b5d6c8b4a8f1e9c3d5b8a9a4d3f1a4e9a5d6c8b4a8f1e9c3d5b8a9a4d3f1a4e9"
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,92 @@
+id: fedramp-sbom
+name: FedRAMP SBOM requirements
+version: "2024-05"
+sources:
+  - name: FedRAMP
+    ref: "FedRAMP Vulnerability Scanning Requirements / SBOM guidance, aligned to NTIA Minimum Elements and EO 14028 §4"
+    url: https://www.fedramp.gov/
+  - name: OMB / CISA
+    ref: "OMB M-22-18 and CISA Secure Software Development Attestation, SBOM data field expectations"
+    url: https://www.cisa.gov/sbom
+
+schema:
+  min_versions:
+    spdx: "2.3"
+    cyclonedx: "1.5"
+
+rules:
+  - id: fedramp-author
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "FedRAMP SBOM: Author of SBOM Data (NTIA-aligned)"
+    field: creators
+    validators: [present, non_placeholder]
+
+  - id: fedramp-timestamp
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "FedRAMP SBOM: Timestamp of SBOM creation"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: fedramp-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "FedRAMP SBOM: Component Name"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: fedramp-component-version
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "FedRAMP SBOM: Version of the Component"
+    field: version
+    validators: [present, non_placeholder]
+
+  - id: fedramp-component-supplier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "FedRAMP SBOM: Supplier Name"
+    field: supplier
+    validators: [present, non_placeholder]
+
+  - id: fedramp-component-identifier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "FedRAMP SBOM: Other Unique Identifiers (purl)"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: fedramp-component-hash
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Accuracy
+    citation: "FedRAMP SBOM: Cryptographic hash for component integrity"
+    field: hashes
+    validators:
+      - name: hash_algorithm_in_set
+        algs: [SHA-256, SHA-512]
+
+  - id: fedramp-dependency-completeness
+    scope: dependency
+    severity: MUST
+    category: Completeness
+    citation: "FedRAMP SBOM: Dependency Relationship"
+    validators: [dependency_completeness]
+
+scoring:
+  weights:
+    Completeness: 0.35
+    Accuracy: 0.25
+    Consistency: 0.15
+    Provenance: 0.15
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.95
+    noassertion_density_max: 0.10

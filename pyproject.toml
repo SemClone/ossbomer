@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ossbomer"
+version = "2.0.0"
+description = "Profile-driven SBOM validation, conformance, and license policy (SPDX / CycloneDX)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Oscar Valenzuela", email = "oscar.valenzuela.b@gmail.com" }]
+keywords = ["sbom", "spdx", "cyclonedx", "compliance", "cra", "ntia", "fedramp", "aibom", "license"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Security",
+]
+dependencies = [
+    "click>=8.0",
+    "jsonschema>=4.0",
+    "PyYAML>=6.0",
+    "requests",
+    # Mature SBOM parsers/validators (N3):
+    "cyclonedx-python-lib>=8",
+    "spdx-tools>=0.8.3",
+    "lxml>=4.9",  # required by cyclonedx-python-lib for XML schema validation
+]
+
+[project.optional-dependencies]
+# License policy evaluation is delegated to ospac (Open Source Policy as Code).
+# Required by any profile whose license_policy declares `engine: ospac`.
+oslc = ["ospac>=1.2"]
+# ospac is in dev too, so CI exercises the real policy engine rather than
+# skipping the license layer's tests.
+dev = ["pytest", "ruff", "mypy", "types-PyYAML", "lxml-stubs", "ospac>=1.2"]
+
+[project.scripts]
+ossbomer = "ossbomer.cli:main"
+# Backward-compatible entry points (N4). Standalone shim distributions for the
+# ossbomer-schema / -conformance / -oslc PyPI names come later.
+ossbomer-schema = "ossbomer.schema.cli:main"
+ossbomer-conformance = "ossbomer.conformance.cli:validate"
+ossbomer-oslc = "ossbomer.oslc.cli:validate"
+
+[project.urls]
+Homepage = "https://github.com/SemClone/ossbomer"
+Documentation = "https://ovalenzuela.com/ossbomer/"
+Source = "https://github.com/SemClone/ossbomer"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"ossbomer.profiles" = ["*.yaml", "*.yml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+# No python_version pin: current mypy refuses to target anything below 3.10,
+# while this project still supports 3.9. Type checking therefore runs against
+# the interpreter it is invoked with. Runtime 3.9 compatibility is covered by
+# the test matrix, not by mypy.
+files = ["src"]
+
+# Neither ships stubs nor a py.typed marker, and no stub packages exist. Scoped
+# to these modules rather than set globally, so a dependency that *does* gain
+# types starts being checked instead of staying silently ignored.
+[[tool.mypy.overrides]]
+module = ["license_expression.*", "ospac.*"]
+ignore_missing_imports = true

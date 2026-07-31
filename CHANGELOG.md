@@ -1,0 +1,105 @@
+# Changelog
+
+All notable changes to this project are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims to
+follow [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+The relaunch: the three standalone Xpertians packages (`ossbomer-schema`,
+`ossbomer-conformance`, `ossbomer-oslc`) are consolidated into a single
+profile-driven `ossbomer` distribution.
+
+### Added
+- Unified `ossbomer validate --profile <name> ... --file <sbom>` CLI; `--profile`
+  is repeatable and each profile yields an independent verdict + quality score.
+- Profile format and loader binding schema minima + conformance rules + license
+  policy in one YAML file, composable via `extends` / `excludes`, with private
+  overlay search paths (`--profile-path`, `OSSBOMER_PROFILE_PATH`).
+- Profile catalog: NTIA, CISA 2025, EU CRA (Annex VII), BSI TR-03183 v2.1,
+  India CERT-In v2.0, OpenChain Telco v1.1, FedRAMP, and a net-new AIBOM v0.1.
+- Four license-policy profiles — `license-distribution`, `license-mobile`,
+  `license-saas`, `license-internal` — so the ospac-backed license layer works
+  out of the box and can be copied as a starting point.
+- Canonical SBOM intermediate representation and parsers built on
+  `cyclonedx-python-lib` and `spdx-tools`; iterate per component and per dependency.
+- Pluggable validator registry (presence, non-placeholder, RFC 3339 UTC, SPDX
+  license expression, PURL, SemVer/CalVer, hash-algorithm-in-set,
+  format-version-at-least, format-version-not-deprecated, references-VEX,
+  signed-with-x509,
+  dependency-completeness, known-unknowns) plus an entry-point plugin hook.
+- Five-category quality scoring (Completeness, Accuracy, Consistency, Provenance,
+  Freshness), weighted per profile, never blended across profiles.
+- Reporters: console, JSON, and SARIF (one run per profile).
+- Multi-version fixture corpus and a schema version matrix test suite.
+
+### Changed
+- **The OSLC layer is now backed by `ospac`.** Declared licenses are evaluated
+  against an ospac policy for a **use case** the profile names — `mobile`,
+  `saas`, `internal`, `commercial` — so the same license can be allowed in one
+  context and denied in another. Adopters can point a profile at their own ospac
+  policy directory via `policy_path`. The previous inline `license_rules`
+  allow/deny list remains as an override layer applied after the engine, and
+  still works with no engine and no optional dependency. `ospac` stays an
+  optional extra; a profile that declares `engine: ospac` without it installed
+  now fails with exit 2 rather than silently skipping the license layer.
+- SPDX license *expressions* are evaluated with their real semantics: `OR`
+  resolves to the least restrictive operand, `AND` to the most restrictive.
+- Schema validation is now **version-aware**: documents are validated against
+  their detected version instead of a hardcoded schema.
+- License stays **Apache-2.0**, matching the previous PyPI `ossbomer` 0.1.4. An
+  earlier step in the relaunch had moved it to MIT; that is reverted, so 2.0.0 is
+  not a relicensing event for anyone already depending on 0.1.4.
+
+### Fixed
+- `schema.deprecated_versions_forbidden` is now enforced. It was parsed and then
+  ignored, while `eu-cra-annex-vii` and `bsi-tr-03183-v2.1` both declared it — so
+  two shipped profiles asked for a check that never ran. The retired set is
+  profile data (`schema.deprecated_versions`) with an overridable default, rather
+  than a judgement frozen in the engine.
+- `ossbomer-schema` printed a raw traceback for an unreadable file, and used exit
+  `1` for "could not process" where the other commands use `2`. All four commands
+  now share one exit-code convention.
+- JSON output now carries each profile's `sources` — the standard it encodes. The
+  field was parsed from all twelve profiles and then discarded, so a compliance
+  report never said what it was claiming compliance *with*.
+- SPDX relationships pointing at `NONE` or `NOASSERTION` were added to the
+  dependency graph as non-string sentinel objects, where `dependency_completeness`
+  then compared them against real component refs. They state that no relationship
+  is asserted, so they are no longer treated as edges.
+- A validator spec written as a mapping without a `name` key reached the registry
+  as `None` and reported `Unknown validator: None`, which did not say which rule
+  was malformed. It now raises `ProfileError` naming the offending spec.
+- `Component.identity` ended its fallback chain with an f-string, which is always
+  truthy, making the `bom_ref` and `<unknown>` fallbacks unreachable. Components
+  carrying only a bom-ref were labelled `None@None` in issue locations.
+- CycloneDX document authorship was read only from `metadata.tools`, so
+  `metadata.authors` and `metadata.manufacturer` were ignored. Any CycloneDX SBOM
+  authored by a person or an organization rather than generated by a tool failed
+  the "author of SBOM data" requirement, which is a MUST in seven of the eight
+  shipped profiles. `creators` now holds people, organizations and tools — mirroring
+  the SPDX mapping — and `tools` remains the tool-only subset.
+- CycloneDX JSON was always validated against the 1.4 schema regardless of the
+  document's declared version.
+- SPDX/CycloneDX XML validation was stubbed to always report "Valid".
+- The `ossbomer-conformance --rules` flag was silently ignored.
+
+### Removed (breaking, for the legacy per-layer commands)
+- **The standalone conformance implementation.** It kept its own rule table and
+  read only `metadata.component` — the root component the SBOM *describes* — so
+  it never looked at the component inventory. A document with unversioned,
+  unidentified components was reported as NTIA-conformant. It also exited `0`
+  regardless of the result, so it could not gate CI, and its `author` mapping
+  only understood the pre-1.5 CycloneDX `tools` shape, producing false failures
+  on 1.5+ documents. `ossbomer-conformance` is now a front-end over the profile
+  engine.
+- **The standalone license checker** and its bundled 400 KB `license_rules.json`,
+  superseded by the ospac-backed layer. `ossbomer-oslc --use-case` now selects a
+  license profile.
+- `--rules` and `--license-rules`, whose file formats no longer exist. They now
+  error, naming the replacement, rather than being silently accepted.
+
+### Removed
+- The bundled 136 MB OSSA advisory dataset and `PackageRiskAnalyzer` (license
+  classification moves to `ospac`; package risk to a forthcoming open PURL API).
+- ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).

@@ -1,0 +1,90 @@
+id: eu-cra-annex-vii
+name: EU Cyber Resilience Act, Annex VII §8
+version: "2024-11"
+sources:
+  - name: EU CRA
+    ref: "Regulation (EU) 2024/2847, Annex VII (8)"
+    url: https://eur-lex.europa.eu/eli/reg/2024/2847
+
+schema:
+  min_versions:
+    spdx: "2.3"
+    cyclonedx: "1.5"
+  deprecated_versions_forbidden: true
+
+rules:
+  - id: cra-sbom-author
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "CRA Annex VII §8(a)"
+    field: creators
+    validators: [present]
+
+  - id: cra-timestamp
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "CRA Annex VII §8"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: cra-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex VII §8(b)"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: cra-component-version
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex VII §8(b)"
+    field: version
+    validators: [present, non_placeholder]
+
+  - id: cra-component-identifier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex VII §8(c)"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: cra-component-license
+    scope: component
+    severity: MUST
+    category: Accuracy
+    citation: "CRA Annex VII §8 (licence)"
+    field: licenses
+    validators: [present, spdx_license_expression]
+
+  - id: cra-component-hash
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Accuracy
+    citation: "CRA Annex VII §8 (integrity)"
+    field: hashes
+    validators:
+      - name: hash_algorithm_in_set
+        algs: [SHA-256, SHA-512]
+
+  - id: cra-dependency-completeness
+    scope: dependency
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex VII §8 (dependencies)"
+    validators: [dependency_completeness]
+
+scoring:
+  weights:
+    Completeness: 0.25
+    Accuracy: 0.30
+    Consistency: 0.15
+    Provenance: 0.20
+    Freshness: 0.10
+  thresholds:
+    noassertion_density_max: 0.10
+    license_normalization_min: 0.90

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bom xmlns="http://cyclonedx.org/schema/bom/1.4" serialNumber="urn:uuid:123e4567-e89b-12d3-a456-426614174000" version="1">
+  <metadata>
+    <timestamp>2025-02-01T12:00:00Z</timestamp>
+    <tools>
+      <tool>
+        <vendor>Example Corp</vendor>
+        <name>SBOM Generator</name>
+        <version>2.0.0</version>
+      </tool>
+    </tools>
+    <component type="application">
+      <name>SBOM Tool</name>
+      <version>2.0.0</version>
+      <purl>pkg:npm/sbom-tool@2.0.0</purl>
+      <licenses>
+        <license>
+          <id>Apache-2.0</id>
+        </license>
+      </licenses>
+    </component>
+  </metadata>
+  <components>
+    <component type="library">
+      <name>jsonschema</name>
+      <version>4.0.0</version>
+      <purl>pkg:pypi/jsonschema@4.0.0</purl>
+      <licenses>
+        <license>
+          <id>MIT</id>
+        </license>
+      </licenses>
+      <hashes>
+        <hash alg="SHA-256">3a7bd3e2360f6b9b1ff643b5b1d67e7aef9dbfcd0b5ad1d3b4f125e9e55a1b6a</hash>
+      </hashes>
+    </component>
+    <component type="library">
+      <name>cyclonedx-python-lib</name>
+      <version>1.3.0</version>
+      <purl>pkg:pypi/cyclonedx-python-lib@1.3.0</purl>
+      <licenses>
+        <license>
+          <id>Apache-2.0</id>
+        </license>
+      </licenses>
+      <hashes>
+        <hash alg="SHA-256">d9a45d8e6e6b8f8cd3b745f63a7c5ebc6ebf9fdbcd8a6b7a8f5a9b5c1b7a1b6c</hash>
+      </hashes>
+    </component>
+  </components>
+  <dependencies>
+    <dependency ref="pkg:npm/sbom-tool@2.0.0">
+      <dependsOn>pkg:pypi/jsonschema@4.0.0</dependsOn>
+      <dependsOn>pkg:pypi/cyclonedx-python-lib@1.3.0</dependsOn>
+    </dependency>
+  </dependencies>
+</bom>

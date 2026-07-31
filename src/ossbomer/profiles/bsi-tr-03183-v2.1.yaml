@@ -1,0 +1,119 @@
+id: bsi-tr-03183-v2.1
+name: BSI TR-03183 Part 2 v2.1
+version: "2.1.0"
+sources:
+  - name: BSI
+    ref: "BSI TR-03183 Cyber Resilience Requirements for Manufacturers and Products, Part 2: Software Bill of Materials (SBOM), Version 2.1.0"
+    url: https://www.bsi.bund.de/dok/TR-03183-en
+  - name: BSI
+    ref: "BSI TR-03183 Part 2 §5 (SBOM formats), §6 (Required data fields), §7 (Verification)"
+    url: https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2.pdf
+
+schema:
+  min_versions:
+    spdx: "3.0.1"
+    cyclonedx: "1.6"
+  require_signature: true
+  deprecated_versions_forbidden: true
+
+rules:
+  - id: bsi-author
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "BSI TR-03183-2 §6.1: SBOM-Author"
+    field: creators
+    validators: [present, non_placeholder]
+
+  - id: bsi-tool
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "BSI TR-03183-2 §6.1: Tool that created the SBOM"
+    field: tools
+    validators: [present, non_placeholder]
+
+  - id: bsi-timestamp
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "BSI TR-03183-2 §6.1: Timestamp"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: bsi-signed
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "BSI TR-03183-2 §7: Integrity and authenticity (digital signature)"
+    field: signed
+    validators: [signed_with_x509]
+
+  - id: bsi-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "BSI TR-03183-2 §6.2: Component name"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: bsi-component-version
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "BSI TR-03183-2 §6.2: Version of the component"
+    field: version
+    validators: [present, non_placeholder, semver_or_calver]
+
+  - id: bsi-component-supplier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "BSI TR-03183-2 §6.2: Supplier of the component"
+    field: supplier
+    validators: [present, non_placeholder]
+
+  - id: bsi-component-identifier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "BSI TR-03183-2 §6.2: Unique identifier (purl)"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: bsi-component-license
+    scope: component
+    severity: MUST
+    category: Accuracy
+    citation: "BSI TR-03183-2 §6.2: Licence (SPDX expression)"
+    field: licenses
+    validators: [present, spdx_license_expression]
+
+  - id: bsi-component-hash
+    scope: component
+    severity: MUST
+    category: Accuracy
+    citation: "BSI TR-03183-2 §6.2: Hash value of the executable component (SHA-512)"
+    field: hashes
+    validators:
+      - name: hash_algorithm_in_set
+        algs: [SHA-512]
+
+  - id: bsi-dependency-completeness
+    scope: dependency
+    severity: MUST
+    category: Provenance
+    citation: "BSI TR-03183-2 §6.3: Dependencies (dependency relationships complete)"
+    validators: [dependency_completeness]
+
+scoring:
+  weights:
+    Completeness: 0.20
+    Accuracy: 0.35
+    Consistency: 0.10
+    Provenance: 0.25
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.98
+    noassertion_density_max: 0.02
+    license_normalization_min: 0.98

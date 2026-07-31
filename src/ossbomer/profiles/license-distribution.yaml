@@ -1,0 +1,46 @@
+id: license-distribution
+name: License policy — distributed commercial product
+version: "1.0"
+sources:
+  - name: OSPAC
+    ref: "Open Source Policy as Code — default enterprise policy"
+    url: https://pypi.org/project/ospac/
+
+# Every declared license in the SBOM is evaluated by ospac for this use case.
+# `use_case` is passed to ospac as `distribution_type`, which is what its policy
+# rules match on. Point `policy_path` at your own ospac policy directory to
+# replace the shipped default entirely.
+license_policy:
+  engine: ospac
+  use_case: commercial
+  # Add `context` to match on anything else your policy declares, e.g.:
+  # context:
+  #   linking_type: static_linking
+  #
+  # `rules` override the engine for specific identifiers, and work without ospac:
+  # rules:
+  #   - spdx_id: LGPL-2.1-only
+  #     allowed: true
+  #     reason: "Reviewed 2026-03; dynamically linked only."
+
+schema:
+  min_versions:
+    spdx: "2.2"
+    cyclonedx: "1.3"
+
+rules:
+  - id: license-declared
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "A license policy cannot be applied to a component with no declared license."
+    field: licenses
+    validators: [present]
+
+scoring:
+  weights:
+    Completeness: 0.25
+    Accuracy: 0.45
+    Consistency: 0.10
+    Provenance: 0.10
+    Freshness: 0.10

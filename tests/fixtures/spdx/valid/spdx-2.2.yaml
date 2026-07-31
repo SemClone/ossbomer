@@ -1,0 +1,26 @@
+SPDXID: SPDXRef-DOCUMENT
+creationInfo:
+  created: '2026-01-01T00:00:00Z'
+  creators:
+  - 'Tool: ossbomer-1.0'
+dataLicense: CC0-1.0
+documentNamespace: https://example.com/acme-2.2
+name: acme-doc
+packages:
+- SPDXID: SPDXRef-Package-leftpad
+  copyrightText: NOASSERTION
+  downloadLocation: NOASSERTION
+  externalRefs:
+  - referenceCategory: PACKAGE_MANAGER
+    referenceLocator: pkg:npm/left-pad@1.3.0
+    referenceType: purl
+  filesAnalyzed: true
+  licenseConcluded: MIT
+  licenseDeclared: MIT
+  name: left-pad
+  versionInfo: 1.3.0
+relationships:
+- relatedSpdxElement: SPDXRef-Package-leftpad
+  relationshipType: DESCRIBES
+  spdxElementId: SPDXRef-DOCUMENT
+spdxVersion: SPDX-2.2

@@ -1,0 +1,78 @@
+id: ntia-min-elements
+name: NTIA Minimum Elements for an SBOM
+version: "2021-07"
+sources:
+  - name: NTIA
+    ref: "The Minimum Elements For a Software Bill of Materials (SBOM), 2021-07-12"
+    url: https://www.ntia.gov/report/2021/minimum-elements-software-bill-materials-sbom
+
+schema:
+  min_versions:
+    spdx: "2.2"
+    cyclonedx: "1.3"
+
+rules:
+  - id: ntia-author
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "NTIA: Author of SBOM Data"
+    field: creators
+    validators: [present]
+
+  - id: ntia-timestamp
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "NTIA: Timestamp"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: ntia-supplier
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Completeness
+    citation: "NTIA: Supplier Name"
+    field: supplier
+    validators: [present]
+
+  - id: ntia-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "NTIA: Component Name"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: ntia-version
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "NTIA: Version of the Component"
+    field: version
+    validators: [present, non_placeholder]
+
+  - id: ntia-unique-identifier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "NTIA: Other Unique Identifiers"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: ntia-dependency-relationship
+    scope: dependency
+    severity: MUST
+    category: Completeness
+    citation: "NTIA: Dependency Relationship"
+    validators: [dependency_completeness]
+
+scoring:
+  weights:
+    Completeness: 0.40
+    Accuracy: 0.15
+    Consistency: 0.15
+    Provenance: 0.20
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.90

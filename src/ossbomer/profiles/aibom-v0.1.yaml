@@ -1,0 +1,70 @@
+# AI Bill of Materials (AIBOM) — net-new, OSSBomer-authored profile (v0.1).
+#
+# There is currently NO regulation or published standard that mandates an AIBOM,
+# so every rule below intentionally uses severity: SHOULD (advisory only).
+#
+# AI-specific fields — model/weights cryptographic hash, training-data provenance
+# and dataset lineage, and evaluation/benchmark results — are NOT yet enforceable.
+# The OSSBomer intermediate representation (IR) has no attributes for them, and
+# the allowed component fields (name/version/purl/cpe/supplier/author/publisher/
+# licenses/hashes/external_refs) cannot express them. Enforcing those AI-specific
+# fields requires a FUTURE IR extension; until then this profile only checks
+# generic document- and component-level hygiene.
+id: aibom-v0.1
+name: AI Bill of Materials (net-new, OSSBomer)
+version: "0.1"
+sources:
+  - name: OSSBomer
+    ref: "OSSBomer AIBOM working draft v0.1 (net-new; no external regulation defines AIBOM minimum elements yet)"
+    url: https://github.com/SemClone/ossbomer
+  - name: CISA (informative)
+    ref: "CISA/NTIA SBOM minimum elements, used as the generic hygiene baseline pending AI-specific guidance"
+    url: https://www.cisa.gov/sbom
+
+schema:
+  min_versions:
+    spdx: "2.3"
+    cyclonedx: "1.5"
+
+rules:
+  - id: aibom-author
+    scope: document
+    severity: SHOULD
+    category: Provenance
+    citation: "AIBOM v0.1 §2: Document creators / author present"
+    field: creators
+    validators: [present, non_placeholder]
+
+  - id: aibom-timestamp
+    scope: document
+    severity: SHOULD
+    category: Freshness
+    citation: "AIBOM v0.1 §2: Document timestamp present"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: aibom-component-name
+    scope: component
+    severity: SHOULD
+    category: Completeness
+    citation: "AIBOM v0.1 §3: Component/model name present"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: aibom-component-version
+    scope: component
+    severity: SHOULD
+    category: Completeness
+    citation: "AIBOM v0.1 §3: Component/model version present"
+    field: version
+    validators: [present, non_placeholder]
+
+scoring:
+  weights:
+    Completeness: 0.30
+    Accuracy: 0.20
+    Consistency: 0.15
+    Provenance: 0.25
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.50

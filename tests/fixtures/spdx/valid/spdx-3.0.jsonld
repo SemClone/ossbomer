@@ -1,0 +1,27 @@
+{
+  "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+  "@graph": [
+    {
+      "type": "CreationInfo",
+      "spdxId": "_:creationinfo",
+      "specVersion": "3.0.1",
+      "created": "2026-01-01T00:00:00Z",
+      "createdBy": [
+        "_:agent"
+      ]
+    },
+    {
+      "type": "SpdxDocument",
+      "spdxId": "https://example.com/spdxdoc",
+      "creationInfo": "_:creationinfo",
+      "name": "acme-doc"
+    },
+    {
+      "type": "software_Package",
+      "spdxId": "https://example.com/pkg/left-pad",
+      "creationInfo": "_:creationinfo",
+      "name": "left-pad",
+      "software_packageVersion": "1.3.0"
+    }
+  ]
+}

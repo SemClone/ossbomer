@@ -1,0 +1,25 @@
+## Document Information
+SPDXVersion: SPDX-2.2
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: acme-doc
+DocumentNamespace: https://example.com/acme-2.2
+
+## Creation Information
+Creator: Tool: ossbomer-1.0
+Created: 2026-01-01T00:00:00Z
+
+## Package Information
+PackageName: left-pad
+SPDXID: SPDXRef-Package-leftpad
+PackageVersion: 1.3.0
+PackageDownloadLocation: NOASSERTION
+FilesAnalyzed: true
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+PackageCopyrightText: NOASSERTION
+ExternalRef: PACKAGE-MANAGER purl pkg:npm/left-pad@1.3.0
+
+## Relationships
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-Package-leftpad
+

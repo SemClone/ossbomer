@@ -1,0 +1,96 @@
+---
+title: License policy
+layout: default
+parent: Guide
+nav_order: 3
+---
+
+# License policy
+{: .no_toc }
+
+One question per declared license: given how you ship this, does policy allow it?
+
+1. TOC
+{:toc}
+
+## Why the use case decides
+
+The same license is not the same answer everywhere, so a tool that answers
+"is GPL-3.0 allowed?" without knowing how you ship is guessing:
+
+```bash
+ossbomer validate --profile license-internal --file sbom.json   # GPL: fine
+ossbomer validate --profile license-mobile   --file sbom.json   # GPL: denied
+ossbomer validate --profile license-saas     --file sbom.json   # GPL and AGPL: denied
+```
+
+Internal use is not distribution, so most copyleft obligations never trigger.
+Running a network service does trigger AGPL source disclosure, which shipping a
+binary does not. App store terms conflict with GPL-3.0 in ways that a server
+deployment never encounters.
+
+## Where the rules live
+
+The rules are in [ospac](https://pypi.org/project/ospac/), not in ossbomer. That
+separation is deliberate: you change the answer by pointing at a different policy
+directory, not by patching the tool or waiting on a release.
+
+```yaml
+license_policy:
+  engine: ospac            # omit to use only the inline rules below
+  use_case: mobile         # passed to ospac as `distribution_type`
+  policy_path: ./policies  # optional: your own ospac policy dir, relative to this file
+  context:                 # optional: any other keys your policy matches on
+    linking_type: dynamic_linking
+  rules:                   # optional: overrides for specific identifiers
+    - spdx_id: LGPL-2.1-only
+      allowed: true
+      reason: "Reviewed 2026-03; dynamically linked only."
+```
+
+The engine runs first, then inline `rules` override it. So you can allow something
+your policy denies, or deny something it allows, without forking the policy. Give
+a `reason` when you do; it shows up in the report and saves the next person from
+re-deriving your decision.
+
+Inline rules work on their own. Drop `engine` and you have a small policy with no
+optional dependency at all.
+
+{: .note }
+An override needs a `spdx_id`, and it must be one SPDX identifier rather than an
+expression. Overrides are matched by exact identifier, so an expression would match
+nothing; both an `expression` key and a missing `spdx_id` are rejected when the
+profile loads rather than sitting there doing nothing. To decide on expressions,
+let the engine evaluate them — see below.
+
+## SPDX expressions
+
+Declared licenses are frequently expressions, not single identifiers, and getting
+the operators wrong produces wrong compliance answers:
+
+| Declared | Result | Why |
+| -------- | ------ | --- |
+| `MIT OR GPL-3.0-only` | allowed | You pick the operand, so the least restrictive one governs |
+| `MIT AND GPL-3.0-only` | denied for distribution | Every operand applies, so the most restrictive governs |
+| `Apache-2.0 WITH LLVM-exception` | allowed | Classified on the base license |
+
+## When ospac is missing
+
+A profile declaring `engine: ospac` without ospac installed exits 2 instead of
+skipping the layer:
+
+```bash
+pip install ".[oslc]"
+```
+
+{: .warning }
+This is intentional. A license check that silently does nothing and still reports
+PASS is worse than no check at all, because someone will ship on the strength of
+it.
+
+## What is not here yet
+
+Package and PURL level risk is a separate concern and is still pending. The old
+136 MB bundled advisory dataset and `PackageRiskAnalyzer` were removed. Risk will
+come back through the open PURL API as an opt-in network feature, so the default
+stays offline.

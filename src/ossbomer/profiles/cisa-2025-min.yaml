@@ -1,0 +1,56 @@
+id: cisa-2025-min
+name: CISA 2025 Draft SBOM Minimum Elements
+version: "2025-08"
+sources:
+  - name: CISA
+    ref: "CISA, 2025 Minimum Elements for a Software Bill of Materials (Draft), Section 3 (Data Fields)"
+    url: https://www.cisa.gov/resources-tools/resources/2025-minimum-elements-software-bill-materials-sbom
+  - name: NTIA
+    ref: "The Minimum Elements For a Software Bill of Materials (SBOM), 2021-07-12"
+    url: https://www.ntia.gov/report/2021/minimum-elements-software-bill-materials-sbom
+
+extends:
+  - ntia-min-elements
+
+schema:
+  min_versions:
+    spdx: "2.3"
+    cyclonedx: "1.5"
+
+rules:
+  - id: cisa-tool-name
+    scope: document
+    severity: SHOULD
+    category: Provenance
+    citation: "CISA 2025 Draft §3: SBOM Author and generating tool"
+    field: tools
+    validators: [present, non_placeholder]
+
+  - id: cisa-component-license
+    scope: component
+    severity: SHOULD
+    category: Accuracy
+    citation: "CISA 2025 Draft §3: License (recommended data field)"
+    field: licenses
+    validators: [present, spdx_license_expression]
+
+  - id: cisa-component-hash
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Accuracy
+    citation: "CISA 2025 Draft §3: Cryptographic Hash of the Component"
+    field: hashes
+    validators:
+      - name: hash_algorithm_in_set
+        algs: [SHA-256, SHA-512]
+
+scoring:
+  weights:
+    Completeness: 0.35
+    Accuracy: 0.25
+    Consistency: 0.15
+    Provenance: 0.15
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.90
+    noassertion_density_max: 0.15

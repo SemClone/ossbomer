@@ -1,0 +1,89 @@
+id: cert-in-v2.0
+name: India CERT-In SBOM Guidelines v2.0
+version: "2.0"
+sources:
+  - name: CERT-In
+    ref: "Indian Computer Emergency Response Team (CERT-In), Technical Guidelines on Software Bill of Materials (SBOM), Version 2.0, Section 5 (SBOM Data Fields)"
+    url: https://www.cert-in.org.in/
+  - name: CERT-In
+    ref: "CERT-In SBOM Guidelines v2.0 §6 (Minimum Elements)"
+    url: https://www.cert-in.org.in/PDF/SBOM_Guidelines.pdf
+
+schema:
+  min_versions:
+    spdx: "2.3"
+    cyclonedx: "1.5"
+
+rules:
+  - id: certin-author
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "CERT-In v2.0 §5: SBOM Author / creator"
+    field: creators
+    validators: [present, non_placeholder]
+
+  - id: certin-timestamp
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "CERT-In v2.0 §5: Timestamp of SBOM generation"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: certin-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CERT-In v2.0 §5: Component Name"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: certin-component-version
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CERT-In v2.0 §5: Component Version"
+    field: version
+    validators: [present, non_placeholder]
+
+  - id: certin-component-supplier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CERT-In v2.0 §5: Supplier / Manufacturer Name"
+    field: supplier
+    validators: [present, non_placeholder]
+
+  - id: certin-component-identifier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CERT-In v2.0 §5: Unique Identifier (purl)"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: certin-component-license
+    scope: component
+    severity: MUST
+    category: Accuracy
+    citation: "CERT-In v2.0 §5: License Information"
+    field: licenses
+    validators: [present, spdx_license_expression]
+
+  - id: certin-dependency-completeness
+    scope: dependency
+    severity: MUST
+    category: Completeness
+    citation: "CERT-In v2.0 §5: Dependency Relationship"
+    validators: [dependency_completeness]
+
+scoring:
+  weights:
+    Completeness: 0.40
+    Accuracy: 0.20
+    Consistency: 0.15
+    Provenance: 0.15
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.90

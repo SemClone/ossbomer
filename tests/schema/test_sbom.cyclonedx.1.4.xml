@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bom xmlns="http://cyclonedx.org/schema/bom/1.4" serialNumber="urn:uuid:123e4567-e89b-12d3-a456-426614174000" version="1">
+  <metadata>
+    <timestamp>2025-02-01T12:00:00Z</timestamp>
+    <tools>
+      <tool>
+        <vendor>Example Corp</vendor>
+        <name>CycloneDX Generator</name>
+        <version>1.0</version>
+      </tool>
+    </tools>
+    <component type="application">
+      <name>example-app</name>
+      <version>2.0.0</version>
+      <purl>pkg:npm/example-app@2.0.0</purl>
+    </component>
+    <licenses>
+      <license>
+        <id>MIT</id>
+      </license>
+    </licenses>
+  </metadata>
+</bom>

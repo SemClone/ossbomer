@@ -1,0 +1,35 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "spdxVersion": "SPDX-2.3",
+  "name": "My Software Project",
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://example.com/my-project",
+  "creationInfo": {
+    "created": "2024-10-27T12:00:00Z",
+    "creators": ["Organization: Example Org"],
+    "licenseListVersion": "SPDX-2.2"
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-1",
+      "packageName": "package-a",
+      "packageVersion": "1.0.0",
+      "packageSupplier": "Organization: Package A Org",
+      "packageChecksum": {
+        "algorithm": "SHA256",
+        "checksumValue": "a1b2c3d4..." // Replace with a real checksum
+      },
+      "packageLicenseConcluded": "MIT",
+      "packageLicenseDeclared": "MIT",
+       "files": [] // Often includes file information
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-1",
+      "relationshipType": "CONTAINS"
+    }
+  ]
+  // Missing closing brace to make it invalid
+}
