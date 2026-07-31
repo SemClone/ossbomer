@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Callable
 
 from .ir import Sbom, is_null_value
@@ -115,17 +116,38 @@ def _rfc3339_utc(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool,
     return True, ""
 
 
+@lru_cache(maxsize=1)
+def spdx_licensing() -> Any:
+    """The SPDX licensing index, built once per process.
+
+    `license_expression.get_spdx_licensing()` rebuilds the whole index on every
+    call and does no caching of its own. Called per component it dominated
+    runtime: on an 883-component SBOM it accounted for 28.7s of a 43.4s run,
+    across 1739 rebuilds from the validator and the scorer together.
+    """
+    from license_expression import get_spdx_licensing
+    return get_spdx_licensing()
+
+
 @register("spdx_license_expression")
 def _spdx_license_expression(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     try:
-        from license_expression import get_spdx_licensing
+        licensing = spdx_licensing()
     except ImportError:  # pragma: no cover - dependency always present via parsers
         return True, "license-expression not available; skipped"
-    licensing = get_spdx_licensing()
     for v in _as_list(value):
         if not isinstance(v, str) or is_null_value(v):
             continue
-        parsed = licensing.validate(v)
+        # `validate` can raise rather than report, on strings real SBOMs
+        # actually carry: "MIT (http://mootools.net/license.txt)" trips an
+        # AttributeError inside license-expression itself. A parser that
+        # explodes on a value is still telling us the value is not a valid
+        # expression, so it is reported as one rather than taking the run down.
+        # `scorer._spdx_expr_ok` has always guarded this; this path had not.
+        try:
+            parsed = licensing.validate(v)
+        except Exception:  # noqa: BLE001
+            return False, f"{v!r} could not be parsed as an SPDX license expression"
         if parsed.errors:
             return False, f"{v!r} is not a valid SPDX license expression"
     return True, ""

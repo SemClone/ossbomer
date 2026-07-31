@@ -124,6 +124,18 @@ different results than they did on 2.0.0. The specifics are immediately below.
   checks 8 of 21 fields (13 of the rest are organisational judgements no SBOM
   carries), and `openchain-telco-v1.1` cannot reject a non-SPDX document even
   though §3.1 requires SPDX.
+- **The license validator no longer crashes on strings real SBOMs carry.**
+  `license_expression.validate()` raises `AttributeError` internally on
+  `"MIT (http://mootools.net/license.txt)"`, which appears in the ProtonMail
+  SBOM. Six profiles died with exit 2 on that document. A parser that explodes
+  on a value is still saying the value is not a valid expression, so it is
+  reported as a finding rather than taking the run down. The scorer already
+  guarded this; the validator did not.
+- **The SPDX licensing index is built once per process instead of per component.**
+  `get_spdx_licensing()` rebuilds the whole index on every call and caches
+  nothing. On an 883-component SBOM it was called 1739 times and accounted for
+  28.7s of a 43.4s run. Validating that document with `cisa-2026-min` went from
+  20.5s to 0.8s.
 - **`hash_wellformed` validator.** Checks each digest is hexadecimal and the
   right length for its declared algorithm. `hash_algorithm_in_set` only inspects
   algorithm names, so a component declaring SHA-256 with a value of `zzz` passed

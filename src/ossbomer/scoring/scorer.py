@@ -42,8 +42,7 @@ class Signals:
 
 def _spdx_expr_ok(expr: str) -> bool:
     try:
-        from license_expression import get_spdx_licensing
-        return not get_spdx_licensing().validate(expr).errors
+        return not V.spdx_licensing().validate(expr).errors
     # A scoring predicate must never raise: an unparseable expression, or a
     # missing optional dependency, simply scores as not-ok.
     except Exception:  # noqa: BLE001
