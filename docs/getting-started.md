@@ -18,9 +18,15 @@ Python 3.9 or newer. It is tested on 3.9 through 3.13.
 
 ## Install
 
-Version 2.0.0 is not on PyPI yet. The `ossbomer` package published there is still
-the pre-consolidation 0.1.4, which does not have the profile engine described in
-these docs. Until 2.0.0 ships, install from source:
+```bash
+pip install "ossbomer[oslc]"
+```
+
+The `oslc` extra pulls in [ospac](https://pypi.org/project/ospac/), which
+evaluates license policy. Every `license-*` profile needs it. Plain
+`pip install ossbomer` works if you only care about schema and conformance.
+
+To work from a checkout instead:
 
 ```bash
 git clone https://github.com/SemClone/ossbomer
@@ -28,15 +34,10 @@ cd ossbomer
 pip install ".[oslc]"
 ```
 
-The `oslc` extra pulls in [ospac](https://pypi.org/project/ospac/), which
-evaluates license policy. Every `license-*` profile needs it. Plain
-`pip install .` works if you only care about schema and conformance.
-
-Once 2.0.0 is published:
-
-```bash
-pip install "ossbomer[oslc]"
-```
+{: .warning }
+Pin `ossbomer>=2` if you are upgrading. The 0.1.4 release on PyPI predates the
+profile engine these docs describe, and the per-layer commands it shipped
+behave differently.
 
 {: .note }
 A profile that asks for ospac when ospac is not installed exits 2 rather than

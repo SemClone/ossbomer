@@ -7,12 +7,12 @@ description: >-
 # Pretty URLs that work both under GitHub Pages (served at /ossbomer/) and when
 # previewing locally with `bundle exec jekyll serve`.
 #
-# `url` is the custom domain, not oscarvalenzuelab.github.io: an account-level
-# CNAME means project pages are served from ovalenzuela.com, and github.io only
-# 301s here. Pointing `url` at github.io made jekyll-seo-tag emit a canonical
-# link and og:url for a host that redirects away from the page itself.
+# The site is a SemClone project page with no custom domain of its own, so the
+# canonical host is semclone.github.io and the path prefix is the repo name.
+# `url` has to match what Pages actually serves, or jekyll-seo-tag emits a
+# canonical link and og:url for a host that isn't this page.
 baseurl: /ossbomer
-url: "https://ovalenzuela.com"
+url: "https://semclone.github.io"
 
 # Just the Docs as a remote theme, so GitHub Pages builds it for us without
 # vendoring the theme files.
