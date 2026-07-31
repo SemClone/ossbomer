@@ -74,13 +74,14 @@ def _validate_cyclonedx(text: str, det: Detection) -> SchemaResult:
 # ---- SPDX --------------------------------------------------------------------
 
 def _validate_spdx_2x(path: str, det: Detection) -> SchemaResult:
-    from spdx_tools.spdx.parser.parse_anything import parse_file
     from spdx_tools.spdx.validation.document_validator import (
         validate_full_spdx_document,
     )
 
+    from .parsers import _spdx_parse
+
     try:
-        document = parse_file(path)
+        document = _spdx_parse(path, det)
     # spdx-tools raises SPDXParsingError and friends, and the set is not stable
     # across releases. A malformed document must come back as a parse failure,
     # never as a traceback, so the catch stays broad deliberately.

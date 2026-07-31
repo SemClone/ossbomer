@@ -1,9 +1,14 @@
+# SUPERSEDED. This profile encodes the August 2025 draft, whose comment period
+# closed on 2025-10-03. CISA published the final document on 2026-07-29 as the
+# 2026 Minimum Elements, which "updates and replaces" the 2021 NTIA elements.
+# Use `cisa-2026-min` for anything current. Kept because a document validated
+# against the draft during the comment window should stay reproducible.
 id: cisa-2025-min
-name: CISA 2025 Draft SBOM Minimum Elements
+name: CISA 2025 Draft SBOM Minimum Elements (superseded by cisa-2026-min)
 version: "2025-08"
 sources:
   - name: CISA
-    ref: "CISA, 2025 Minimum Elements for a Software Bill of Materials (Draft), Section 3 (Data Fields)"
+    ref: "CISA, 2025 Minimum Elements for a Software Bill of Materials (Draft), Section 3 (Data Fields). Superseded 2026-07-29 by the 2026 Minimum Elements."
     url: https://www.cisa.gov/resources-tools/resources/2025-minimum-elements-software-bill-materials-sbom
   - name: NTIA
     ref: "The Minimum Elements For a Software Bill of Materials (SBOM), 2021-07-12"

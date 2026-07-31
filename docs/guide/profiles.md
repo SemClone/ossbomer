@@ -16,20 +16,23 @@ use case.
 
 ## The catalog
 
-Twelve profiles ship with the tool. Run `ossbomer profiles` to see them locally.
+Thirteen usable profiles ship with the tool, plus one withdrawn id that refuses
+to run. Run `ossbomer profiles` to see them locally.
 
 ### Regulations and programs
 
 | Profile | Standard |
 | ------- | -------- |
-| `ntia-min-elements` | NTIA Minimum Elements for an SBOM (2021) |
-| `cisa-2025-min` | CISA 2025 Draft SBOM Minimum Elements |
-| `eu-cra-annex-vii` | EU Cyber Resilience Act, Annex VII §8 |
+| `cisa-2026-min` | CISA 2026 SBOM Minimum Elements |
+| `ntia-min-elements` | NTIA Minimum Elements for an SBOM (2021, superseded) |
+| `cisa-2025-min` | CISA 2025 Draft SBOM Minimum Elements (superseded) |
+| `eu-cra-annex-i` | EU Cyber Resilience Act, Annex I Part II(1) |
 | `bsi-tr-03183-v2.1` | BSI TR-03183 Part 2 v2.1 |
 | `cert-in-v2.0` | India CERT-In SBOM Guidelines v2.0 |
 | `openchain-telco-v1.1` | OpenChain Telco SBOM Quality v1.1 |
 | `fedramp-sbom` | FedRAMP SBOM requirements |
 | `aibom-v0.1` | AI Bill of Materials (net-new, advisory) |
+| `eu-cra-annex-vii` | **Withdrawn.** Cited clauses that do not exist; refuses to run and exits 2. Use `eu-cra-annex-i`. |
 
 ### License use cases
 
@@ -44,14 +47,76 @@ Twelve profiles ship with the tool. Run `ossbomer profiles` to see them locally.
 standard, and its rules sit at SHOULD until the IR carries model, weights, and
 training-data entities.
 
+### Which minimum-elements profile to use
+
+Use `cisa-2026-min`. CISA published the 2026 Minimum Elements on 2026-07-29, and
+it "updates and replaces" the 2021 NTIA document that `ntia-min-elements`
+encodes. It adds ten data fields, renames four, and is co-sealed by seventeen
+international cybersecurity bodies.
+
+The two older profiles still ship and still work:
+
+| Profile | Why it is still here |
+| ------- | -------------------- |
+| `ntia-min-elements` | Contracts and procurement language written against the 2021 document need a check that still means 2021. It is not retrofitted for that reason. |
+| `cisa-2025-min` | The August 2025 draft, whose comment period closed 2025-10-03. Kept so a validation run from the comment window stays reproducible. |
+
+Neither is a moving target. If you want the current baseline, name
+`cisa-2026-min` explicitly rather than expecting the older ids to track it.
+
+## How much of a standard a profile actually covers
+
+A PASS means every rule in the profile passed. It does not always mean the
+document meets the whole standard, because some standards ask for data an SBOM
+does not carry. Where that is true it is stated here rather than left for you to
+discover from a customer.
+
+### `cert-in-v2.0` covers 8 of 21 fields
+
+CERT-In's Table 5 lists twenty-one minimum data fields per component. This
+profile checks eight: Component Name, Component Version, Component Supplier,
+Component License, Component Dependencies, Author of SBOM Data, Timestamp and
+Unique Identifier.
+
+Thirteen are unchecked, and they fall into two groups.
+
+**Not expressible in an SBOM.** Patch Status, Criticality, End-of-Life Date,
+Usage Restrictions, Vulnerabilities, Component Origin and Component Description
+are judgements your organisation makes about a component, not facts the component
+ships with. Neither SPDX nor CycloneDX has a native field for most of them.
+CERT-In is asking for something wider than an SBOM: a component register, of
+which the SBOM is one input. No tool reading only an SBOM can verify them.
+
+**Expressible, not yet checked.** Checksums or Hashes is the notable one. Both
+formats carry it, every other profile here checks it, and it is simply missing.
+Executable Property, Archive Property, Structured Property and Comments or Notes
+are also representable with some work.
+
+So treat a `cert-in-v2.0` PASS as "the SBOM-verifiable subset of CERT-In is
+satisfied", not as CERT-In conformance. The remaining thirteen need evidence from
+outside the document.
+
+### `openchain-telco-v1.1` cannot reject a non-SPDX document
+
+§3.1 of the Telco Guide requires SPDX, version 2.2 or 2.3. Nothing else
+conforms. This profile sets an SPDX version floor but cannot express "SPDX and
+nothing else", so a CycloneDX document runs through the element checks and can
+report PASS while being non-conformant on format alone.
+
+Until that is fixed, confirm your document is SPDX before trusting a Telco
+verdict. The profile also checks six of the seventeen items §3.2 requires; most
+of the rest are guaranteed by any valid SPDX file, but `CreatorComment`,
+`PackageLicenseDeclared`, `PackageCopyrightText` and the `Relationship`
+requirement are genuinely unchecked.
+
 ## Regional coverage, and what is missing
 
 By jurisdiction, what ships today:
 
 | Region | Covered by | Status |
 | ------ | ---------- | ------ |
-| United States | `ntia-min-elements`, `cisa-2025-min`, `fedramp-sbom` | Yes |
-| European Union | `eu-cra-annex-vii` | Yes |
+| United States | `cisa-2026-min`, `ntia-min-elements`, `fedramp-sbom` | Yes |
+| European Union | `eu-cra-annex-i` | Yes |
 | Germany | `bsi-tr-03183-v2.1` | Yes |
 | India | `cert-in-v2.0` | Yes |
 | Telecom sector | `openchain-telco-v1.1` | Yes, sector rather than region |
@@ -73,7 +138,7 @@ of a properly cited regional profile are very welcome.
 ## Picking one
 
 Match the profile to the obligation you actually have. If you sell into the EU,
-`eu-cra-annex-vii`. If you are answering a US federal procurement question,
+`eu-cra-annex-i`. If you are answering a US federal procurement question,
 `ntia-min-elements` or `fedramp-sbom`. If a customer sent you a questionnaire
 citing BSI, `bsi-tr-03183-v2.1`.
 
@@ -81,7 +146,7 @@ Run several at once when you have several obligations. Each answers separately:
 
 ```bash
 ossbomer validate \
-  --profile eu-cra-annex-vii \
+  --profile eu-cra-annex-i \
   --profile ntia-min-elements \
   --file sbom.json
 ```
@@ -90,7 +155,7 @@ License profiles are orthogonal to the regulation ones, so pairing a regulation
 profile with the license profile matching how you ship is a common combination:
 
 ```bash
-ossbomer validate --profile eu-cra-annex-vii --profile license-mobile --file sbom.json
+ossbomer validate --profile eu-cra-annex-i --profile license-mobile --file sbom.json
 ```
 
 ## Rule severity
@@ -115,8 +180,8 @@ an internal standard without copying the public catalog into your repo:
 
 ```yaml
 id: acme-shipping-bar
-extends: [eu-cra-annex-vii, fedramp-sbom]
-excludes: [cra-component-hash]
+extends: [eu-cra-annex-i, fedramp-sbom]
+excludes: [cra-top-level-dependencies]
 rules:
   - id: acme-namespace-tag
     scope: component

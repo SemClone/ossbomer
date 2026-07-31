@@ -9,7 +9,10 @@ dependency).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # avoids a cycle: licenses.py needs is_null_value from here
+    from .licenses import LicenseDeclaration
 
 # Sentinel-ish tokens that mean "explicitly no value" in SBOMs.
 NULL_TOKENS = frozenset({"", "noassertion", "none", "n/a", "unknown"})
@@ -35,8 +38,14 @@ class Component:
     supplier: str | None = None
     author: str | None = None
     publisher: str | None = None
-    # License expression string(s) as declared (may be SPDX ids, expressions, or free text).
+    # Effective license strings: the normalized SPDX form where one could be
+    # resolved, otherwise the raw text. This is what rules and policy see.
     licenses: list[str] = field(default_factory=list)
+    # The full record for each declaration: what the document said, which slot
+    # it came from, and how it normalized. Lets a rule tell "unpinnable free
+    # text" apart from "valid expression in the wrong field", which the flat
+    # `licenses` list above collapses together.
+    license_declarations: list[LicenseDeclaration] = field(default_factory=list)
     # alg (lowercased) -> hash value
     hashes: dict[str, str] = field(default_factory=dict)
     external_refs: list[dict[str, Any]] = field(default_factory=list)
@@ -74,6 +83,18 @@ class Document:
     creators: list[str] = field(default_factory=list)
     # The tool-only subset of `creators`.
     tools: list[str] = field(default_factory=list)
+    # Versions of the tools in `tools`, kept as a parallel list rather than
+    # folded into the tool strings so a rule can check "is a version declared"
+    # without parsing names apart. CISA 2026 makes SBOM Tool Version its own
+    # minimum element, distinct from SBOM Tool Name.
+    tool_versions: list[str] = field(default_factory=list)
+    # Version of the SBOM document itself (CISA 2026 "SBOM Version"), distinct
+    # from the spec version of the data format and from the version of the
+    # component the SBOM describes.
+    sbom_version: str | None = None
+    # Software lifecycle phase(s) the SBOM was generated in (CISA 2026 "SBOM
+    # Generation Context"): "pre-build", "build", "post-build" and friends.
+    lifecycles: list[str] = field(default_factory=list)
     supplier: str | None = None
     data_license: str | None = None
     # True when the document carries a signature envelope (COSE/JWS/x509 detached).

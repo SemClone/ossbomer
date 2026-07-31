@@ -35,7 +35,7 @@ You pick a *profile*. A profile is one YAML file that binds all three, so
 and a spreadsheet.
 
 ```bash
-ossbomer validate --profile eu-cra-annex-vii --file sbom.json
+ossbomer validate --profile eu-cra-annex-i --file sbom.json
 ```
 
 Each profile returns its own verdict and its own quality score. Ask for four
@@ -44,7 +44,7 @@ together, because a good NTIA score tells you nothing about CRA readiness.
 
 ## What comes with it
 
-Twelve profiles ship in the box, covering NTIA, CISA 2025, EU CRA, BSI TR-03183,
+Thirteen usable profiles ship in the box, covering CISA 2026, NTIA, EU CRA, BSI TR-03183,
 India CERT-In, OpenChain Telco, FedRAMP, AIBOM, and four license use cases. See
 [Profiles]({{ site.baseurl }}/guide/profiles) for the full catalog.
 

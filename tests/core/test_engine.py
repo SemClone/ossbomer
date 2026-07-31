@@ -206,7 +206,7 @@ def test_profile_can_override_the_deprecated_set():
 
 def test_the_two_shipped_profiles_that_declare_it_actually_enforce_it():
     from ossbomer.core.profile import load_profile
-    for pid in ("eu-cra-annex-vii", "bsi-tr-03183-v2.1"):
+    for pid in ("eu-cra-annex-i", "bsi-tr-03183-v2.1"):
         profile = load_profile(pid)
         assert profile.schema.deprecated_versions_forbidden is True
         findings = evaluate(_cdx("1.1"), profile)
@@ -236,3 +236,24 @@ def test_the_default_list_covers_versions_that_actually_parse():
 
     assert "1.2" in DEFAULT_DEPRECATED_VERSIONS["cyclonedx"]
     assert "2.1" in DEFAULT_DEPRECATED_VERSIONS["spdx"]
+
+
+def test_license_validator_survives_a_parser_that_raises():
+    """Real SBOMs carry licence strings that make license-expression raise
+    rather than report. "MIT (http://mootools.net/license.txt)" appears in the
+    ProtonMail SBOM and trips an AttributeError inside the library.
+
+    Six profiles crashed with exit 2 on that document. A validator must return
+    a verdict, not take the run down: a value the parser cannot handle is not a
+    valid SPDX expression, which is a finding, not a crash.
+    """
+    from ossbomer.core import validators as V
+    from ossbomer.core.ir import Component, Sbom
+
+    nasty = "MIT (http://mootools.net/license.txt)"
+    sbom = Sbom(sbom_format="cyclonedx", spec_version="1.6", encoding="json",
+                components=[Component(name="mootools", licenses=[nasty])])
+    ctx = V.ValidatorContext(sbom, sbom.components[0], "")
+    ok, msg = V.get("spdx_license_expression")([nasty], ctx, {})
+    assert ok is False
+    assert "mootools" in msg

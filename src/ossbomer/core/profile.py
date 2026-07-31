@@ -78,6 +78,11 @@ class Profile:
     id: str
     name: str
     version: str = ""
+    # Non-empty when the profile has been withdrawn: the reason, shown to the
+    # user. A withdrawn profile must never produce a verdict. Emptying its rules
+    # is not enough -- no findings computes to PASS, so a profile pulled for
+    # citing a clause that does not exist would start reporting success.
+    withdrawn: str = ""
     sources: list[dict[str, Any]] = field(default_factory=list)
     schema: SchemaPolicy = field(default_factory=SchemaPolicy)
     rules: list[Rule] = field(default_factory=list)
@@ -191,6 +196,7 @@ def _parse_document(data: dict[str, Any]) -> Profile:
         id=data["id"],
         name=data.get("name", data["id"]),
         version=str(data.get("version", "")),
+        withdrawn=str(data.get("withdrawn", "") or ""),
         sources=data.get("sources", []) or [],
         schema=schema,
         rules=[_parse_rule(r) for r in data.get("rules", []) or []],

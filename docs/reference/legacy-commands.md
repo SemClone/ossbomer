@@ -20,7 +20,7 @@ Before 2.0 the three layers were separate tools. Those entry points still exist:
 
 ```bash
 ossbomer-schema sbom.json                      # structural validation only
-ossbomer-conformance --file sbom.json          # ntia-min-elements + eu-cra-annex-vii
+ossbomer-conformance --file sbom.json          # ntia-min-elements + eu-cra-annex-i
 ossbomer-oslc --file sbom.json --use-case saas # the matching license-* profile
 ```
 
@@ -37,7 +37,7 @@ document:
 
 ```bash
 ossbomer-conformance --file sbom.json
-ossbomer validate --profile ntia-min-elements --profile eu-cra-annex-vii --file sbom.json
+ossbomer validate --profile ntia-min-elements --profile eu-cra-annex-i --file sbom.json
 ```
 
 There is no separate code path, so there is no behavior to drift apart. They also
@@ -70,7 +70,7 @@ Straightforward, since they are only profile presets:
 | Old | New |
 | --- | --- |
 | `ossbomer-schema sbom.json` | `ossbomer validate --profile <any> --file sbom.json` (schema runs as part of every profile) |
-| `ossbomer-conformance --file sbom.json` | `ossbomer validate --profile ntia-min-elements --profile eu-cra-annex-vii --file sbom.json` |
+| `ossbomer-conformance --file sbom.json` | `ossbomer validate --profile ntia-min-elements --profile eu-cra-annex-i --file sbom.json` |
 | `ossbomer-oslc --file sbom.json --use-case saas` | `ossbomer validate --profile license-saas --file sbom.json` |
 
 Naming the profiles explicitly is worth the extra characters: the old commands

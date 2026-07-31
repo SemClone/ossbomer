@@ -3,7 +3,7 @@ name: OpenChain Telco SBOM Quality v1.1
 version: "1.1"
 sources:
   - name: OpenChain Project
-    ref: "OpenChain Telco SBOM Guide Version 1.1, §3 (SBOM formats), §4 (SBOM Elements / SBOM Data Format Requirements)"
+    ref: "OpenChain Telco SBOM Guide Version 1.1, §3.1 (Data Format) and §3.2 (SPDX Elements to be included). §4 is the conformant notice and specifies no data fields."
     url: https://github.com/OpenChain-Project/Telco-WG
   - name: OpenChain Project
     ref: "OpenChain Telco SBOM Guide v1.1 §3.1 (Data Format: SPDX)"
@@ -18,7 +18,7 @@ rules:
     scope: document
     severity: MUST
     category: Provenance
-    citation: "OpenChain Telco v1.1 §4: Creator (PersonName or OrganizationName)"
+    citation: "OpenChain Telco v1.1 §3.2: Creator (PersonName or OrganizationName)"
     field: creators
     validators: [present, non_placeholder]
 
@@ -26,7 +26,7 @@ rules:
     scope: document
     severity: MUST
     category: Freshness
-    citation: "OpenChain Telco v1.1 §4: Created (timestamp)"
+    citation: "OpenChain Telco v1.1 §3.2: Created (timestamp)"
     field: timestamp
     validators: [present, rfc3339_utc]
 
@@ -34,7 +34,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "OpenChain Telco v1.1 §4: Package Name"
+    citation: "OpenChain Telco v1.1 §3.2: Package Name"
     field: name
     validators: [present, non_placeholder]
 
@@ -42,7 +42,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "OpenChain Telco v1.1 §4: Package Version"
+    citation: "OpenChain Telco v1.1 §3.2: Package Version"
     field: version
     validators: [present, non_placeholder]
 
@@ -50,15 +50,18 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "OpenChain Telco v1.1 §4: Package Supplier"
+    citation: "OpenChain Telco v1.1 §3.2: Package Supplier"
     field: supplier
     validators: [present, non_placeholder]
 
   - id: telco-component-identifier
     scope: component
-    severity: MUST
+    # "A package SHOULD be identified by a Package URL (PURL)". SHOULD, not
+    # REQUIRED -- the REQUIRED identifier in 3.2 is SPDXID, which every SPDX
+    # document carries by construction.
+    severity: SHOULD
     category: Completeness
-    citation: "OpenChain Telco v1.1 §4: SPDXID / Package unique identifier"
+    citation: "OpenChain Telco v1.1 §3.2: a package SHOULD be identified by a PURL"
     field: purl
     validators: [present, purl_wellformed]
 
@@ -66,7 +69,7 @@ rules:
     scope: component
     severity: MUST
     category: Accuracy
-    citation: "OpenChain Telco v1.1 §4: Concluded License (SPDX License Expression)"
+    citation: "OpenChain Telco v1.1 §3.2: Concluded License (SPDX License Expression)"
     field: licenses
     validators: [present, spdx_license_expression]
 
@@ -80,3 +83,25 @@ scoring:
   thresholds:
     version_coverage_min: 0.95
     license_normalization_min: 0.95
+
+# Coverage, stated plainly. 3.2 lists seventeen REQUIRED items. Six have a rule
+# here: Creator, Created, PackageName, PackageVersion, PackageSupplier and
+# PackageLicenseConcluded.
+#
+# Most of the rest are marked "mandatory in SPDX", so a document that parses as
+# valid SPDX carries them by construction and the schema layer already covers
+# them: SPDXVersion, DataLicense, SPDXID, DocumentName, DocumentNamespace,
+# PackageDownloadLocation.
+#
+# Four are genuinely unchecked, because SPDX does not force them:
+#   - CreatorComment, which is where 3.5 SBOM Build information goes
+#   - PackageLicenseDeclared  (mandatory in 2.2, optional in 2.3)
+#   - PackageCopyrightText    (mandatory in 2.2, optional in 2.3)
+#   - Relationship, at least DESCRIBES and CONTAINS
+# The last two matter most: copyright text and declared licence are what an
+# attribution notice is built from, and this profile passes without them.
+#
+# 3.1 also restricts the format to SPDX 2.2 or 2.3 only. This profile sets an
+# SPDX floor but cannot express "SPDX and nothing else", so a CycloneDX document
+# passes here while being non-conformant to the Guide. Fixing that needs a way
+# to declare permitted formats, which the profile schema does not have yet.

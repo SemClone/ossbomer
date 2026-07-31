@@ -6,7 +6,7 @@ sources:
     ref: "Indian Computer Emergency Response Team (CERT-In), Technical Guidelines on Software Bill of Materials (SBOM), Version 2.0, Section 5 (SBOM Data Fields)"
     url: https://www.cert-in.org.in/
   - name: CERT-In
-    ref: "CERT-In SBOM Guidelines v2.0 §6 (Minimum Elements)"
+    ref: "CERT-In Technical Guidelines on SBOM, QBOM & CBOM, AIBOM and HBOM v2.0 (2025-07-09), §4.1 Table 5 and §4.2 (Data Fields)"
     url: https://www.cert-in.org.in/PDF/SBOM_Guidelines.pdf
 
 schema:
@@ -19,7 +19,7 @@ rules:
     scope: document
     severity: MUST
     category: Provenance
-    citation: "CERT-In v2.0 §5: SBOM Author / creator"
+    citation: "CERT-In v2.0 §4.2: SBOM Author / creator"
     field: creators
     validators: [present, non_placeholder]
 
@@ -27,7 +27,7 @@ rules:
     scope: document
     severity: MUST
     category: Freshness
-    citation: "CERT-In v2.0 §5: Timestamp of SBOM generation"
+    citation: "CERT-In v2.0 §4.2: Timestamp of SBOM generation"
     field: timestamp
     validators: [present, rfc3339_utc]
 
@@ -35,7 +35,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "CERT-In v2.0 §5: Component Name"
+    citation: "CERT-In v2.0 §4.2: Component Name"
     field: name
     validators: [present, non_placeholder]
 
@@ -43,7 +43,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "CERT-In v2.0 §5: Component Version"
+    citation: "CERT-In v2.0 §4.2: Component Version"
     field: version
     validators: [present, non_placeholder]
 
@@ -51,7 +51,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "CERT-In v2.0 §5: Supplier / Manufacturer Name"
+    citation: "CERT-In v2.0 §4.2: Supplier / Manufacturer Name"
     field: supplier
     validators: [present, non_placeholder]
 
@@ -59,7 +59,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "CERT-In v2.0 §5: Unique Identifier (purl)"
+    citation: "CERT-In v2.0 §4.2: Unique Identifier (purl)"
     field: purl
     validators: [present, purl_wellformed]
 
@@ -67,7 +67,7 @@ rules:
     scope: component
     severity: MUST
     category: Accuracy
-    citation: "CERT-In v2.0 §5: License Information"
+    citation: "CERT-In v2.0 §4.2: License Information"
     field: licenses
     validators: [present, spdx_license_expression]
 
@@ -75,7 +75,7 @@ rules:
     scope: dependency
     severity: MUST
     category: Completeness
-    citation: "CERT-In v2.0 §5: Dependency Relationship"
+    citation: "CERT-In v2.0 §4.2: Dependency Relationship"
     validators: [dependency_completeness]
 
 scoring:
@@ -87,3 +87,14 @@ scoring:
     Freshness: 0.10
   thresholds:
     version_coverage_min: 0.90
+
+# Not yet covered, and not faked. 4.1 Table 5 lists twenty-one minimum data
+# fields. This profile covers eight. The thirteen without a rule are: Component
+# Description, Component Origin, Vulnerabilities, Patch Status, Release Date,
+# End-of-Life Date, Criticality, Usage Restrictions, Comments or Notes,
+# Executable Property, Archive Property, Structured Property, and the separate
+# Unique Identifier entry. Most have no IR field; several (Patch Status,
+# Criticality, EOL) are organisational metadata an SBOM does not carry natively.
+#
+# A PASS here means the eight covered fields are present, not that the document
+# meets CERT-In's twenty-one.

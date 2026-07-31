@@ -20,3 +20,7 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Working notes. Drafts, questions for upstream maintainers, scratch analysis.
+# Not part of the distribution and not reviewed, so kept out of the tree.
+/notes/

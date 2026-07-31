@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Callable
 
 from .ir import Sbom, is_null_value
@@ -115,19 +116,92 @@ def _rfc3339_utc(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool,
     return True, ""
 
 
+@lru_cache(maxsize=1)
+def spdx_licensing() -> Any:
+    """The SPDX licensing index, built once per process.
+
+    `license_expression.get_spdx_licensing()` rebuilds the whole index on every
+    call and does no caching of its own. Called per component it dominated
+    runtime: on an 883-component SBOM it accounted for 28.7s of a 43.4s run,
+    across 1739 rebuilds from the validator and the scorer together.
+    """
+    from license_expression import get_spdx_licensing
+    return get_spdx_licensing()
+
+
 @register("spdx_license_expression")
 def _spdx_license_expression(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     try:
-        from license_expression import get_spdx_licensing
+        licensing = spdx_licensing()
     except ImportError:  # pragma: no cover - dependency always present via parsers
         return True, "license-expression not available; skipped"
-    licensing = get_spdx_licensing()
     for v in _as_list(value):
         if not isinstance(v, str) or is_null_value(v):
             continue
-        parsed = licensing.validate(v)
+        # `validate` can raise rather than report, on strings real SBOMs
+        # actually carry: "MIT (http://mootools.net/license.txt)" trips an
+        # AttributeError inside license-expression itself. A parser that
+        # explodes on a value is still telling us the value is not a valid
+        # expression, so it is reported as one rather than taking the run down.
+        # `scorer._spdx_expr_ok` has always guarded this; this path had not.
+        try:
+            parsed = licensing.validate(v)
+        except Exception:  # noqa: BLE001
+            return False, f"{v!r} could not be parsed as an SPDX license expression"
         if parsed.errors:
             return False, f"{v!r} is not a valid SPDX license expression"
+    return True, ""
+
+
+@register("license_spdx_normalized")
+def _license_spdx_normalized(value: Any, ctx: ValidatorContext,
+                             params: dict) -> tuple[bool, str]:
+    """Every declared license must resolve to SPDX.
+
+    Reads `license_declarations`, so it can say what actually went wrong rather
+    than reporting free text as bad expression syntax. `spdx_license_expression`
+    checks the flat string and cannot tell the two apart.
+
+    An explicit NOASSERTION passes: the document said it does not know, which is
+    what "Explicitly Identifying Unknown Information" asks for. Set
+    `allow_declared_unknown: false` in the rule to require a real license.
+    """
+    declarations = getattr(ctx.target, "license_declarations", None) or []
+    if not declarations:
+        return True, ""  # absence is `declared`/`present`'s job, not this one
+    allow_unknown = params.get("allow_declared_unknown", True)
+    problems = []
+    for d in declarations:
+        if d.resolved:
+            continue
+        if d.declared_unknown:
+            if not allow_unknown:
+                problems.append(f"{d.raw!r} is an explicit unknown")
+            continue
+        problems.append(
+            f"{d.raw!r} (declared in the {d.source!r} field) does not resolve "
+            f"to an SPDX license")
+    if problems:
+        return False, "; ".join(problems[:3])
+    return True, ""
+
+
+@register("license_in_spdx_field")
+def _license_in_spdx_field(value: Any, ctx: ValidatorContext,
+                           params: dict) -> tuple[bool, str]:
+    """A well-formed SPDX expression must not hide in the free-text slot.
+
+    CycloneDX `license.name` is for text that could not be pinned to SPDX. A
+    valid expression there is a generator bug: a consumer reading only
+    `expression` and `license.id` misses the license entirely, even though it is
+    perfectly well formed.
+    """
+    declarations = getattr(ctx.target, "license_declarations", None) or []
+    misplaced = [d for d in declarations if d.misplaced]
+    if misplaced:
+        return False, "; ".join(
+            f"{d.raw!r} is valid SPDX but was declared in the free-text "
+            f"'name' field rather than 'expression'" for d in misplaced[:3])
     return True, ""
 
 
@@ -155,13 +229,58 @@ def _semver_or_calver(value: Any, ctx: ValidatorContext, params: dict) -> tuple[
 
 @register("hash_algorithm_in_set")
 def _hash_algorithm_in_set(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
-    allowed = {a.replace("-", "").lower() for a in params.get("algs", [])}
+    allowed = {str(a).replace("-", "").lower() for a in params.get("algs", [])}
     hashes = value if isinstance(value, dict) else getattr(ctx.target, "hashes", {}) or {}
-    present = {k.replace("-", "").lower() for k in hashes}
+    # str() before replace(): a document is free to put anything in an algorithm
+    # position, including null, and a validator must answer rather than raise.
+    present = {str(k).replace("-", "").lower() for k in hashes}
     if not present:
         return False, "no hashes present"
     if allowed and not (present & allowed):
         return False, f"no hash in required set {sorted(params.get('algs', []))} (have {sorted(hashes)})"
+    return True, ""
+
+
+# Hex digest length each algorithm must produce. A value of the wrong length for
+# its declared algorithm is not a hash of that artifact, whatever else it is.
+HASH_HEX_LENGTHS: dict[str, int] = {
+    "md5": 32,
+    "sha1": 40,
+    "sha256": 64, "sha384": 96, "sha512": 128,
+    "sha3256": 64, "sha3384": 96, "sha3512": 128,
+    "blake2b256": 64, "blake2b384": 96, "blake2b512": 128,
+    "blake3": 64,
+}
+HEX_RE = re.compile(r"^[a-fA-F0-9]+$")
+
+
+@register("hash_wellformed")
+def _hash_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """Check each digest is hex and the right length for its declared algorithm.
+
+    `hash_algorithm_in_set` only inspects the algorithm names, so a component
+    declaring SHA-256 with a value of "zzz" passes it. The CycloneDX JSON schema
+    catches non-hex, but its regex accepts any of the valid digest lengths, so a
+    SHA-256 carrying a 40-character value is schema-valid and still wrong. SPDX
+    has no equivalent constraint at all.
+
+    A truncated or mismatched digest is worse than a missing one: it looks like
+    an integrity check while verifying nothing.
+    """
+    hashes = value if isinstance(value, dict) else getattr(ctx.target, "hashes", {}) or {}
+    for alg, digest in hashes.items():
+        key = str(alg).replace("-", "").replace("_", "").lower()
+        text = str(digest).strip()
+        if not text:
+            return False, f"{alg}: empty digest"
+        if not HEX_RE.match(text):
+            return False, f"{alg}: digest is not hexadecimal ({text[:16]!r})"
+        expected = HASH_HEX_LENGTHS.get(key)
+        if expected is None:
+            continue  # unknown algorithm: hash_algorithm_in_set is the gate for that
+        if len(text) != expected:
+            return False, (f"{alg}: digest is {len(text)} hex chars, "
+                           f"expected {expected} for {alg}")
     return True, ""
 
 
@@ -246,6 +365,31 @@ def _known_unknowns_declared(value: Any, ctx: ValidatorContext, params: dict) ->
     # field is not. Here value is a field that, if absent, must be explicit.
     if value is None:
         return False, "silent gap: field missing with no explicit NOASSERTION/NONE"
+    return True, ""
+
+
+@register("declared")
+def _declared(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """Require a value OR an explicit statement that it is unknown.
+
+    This is CISA 2026 "Explicitly Identifying Unknown Information": if the author
+    cannot supply a field, they must say so rather than omit it. So NOASSERTION
+    passes and silence fails -- the opposite of `present`, which treats an
+    explicit null as absence.
+
+    Distinct from `known_unknowns_declared`, which only rejects `None` and so
+    lets an empty list through. A component with `licenses: []` said nothing at
+    all, which is exactly the silence this rule exists to catch.
+    """
+    if value is None:
+        return False, "silent gap: no value and no explicit NOASSERTION/NONE"
+    # Checked before _as_list: that helper wraps a non-sequence in a one-item
+    # list, so an empty dict (`hashes: {}`) would come back as `[{}]` and read as
+    # populated. Empty containers and empty strings are silence.
+    if isinstance(value, (dict, list, tuple, set, str)) and not value:
+        return False, "silent gap: no value and no explicit NOASSERTION/NONE"
+    if not _as_list(value):
+        return False, "silent gap: no value and no explicit NOASSERTION/NONE"
     return True, ""
 
 

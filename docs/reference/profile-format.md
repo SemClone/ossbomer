@@ -76,8 +76,8 @@ scoring:
 | `excludes` | List of rule ids to drop from what was inherited. |
 
 ```yaml
-extends: [eu-cra-annex-vii, fedramp-sbom]
-excludes: [cra-component-hash]
+extends: [eu-cra-annex-i, fedramp-sbom]
+excludes: [cra-top-level-dependencies]
 ```
 
 Your own `rules` are added on top. Referring to inherited rules by id means

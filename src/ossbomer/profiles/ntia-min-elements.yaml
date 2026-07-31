@@ -1,9 +1,14 @@
+# The 2021 NTIA elements, kept verbatim. CISA's 2026 Minimum Elements
+# (2026-07-29) "updates and replaces" this document, so `cisa-2026-min` is the
+# current baseline. This profile is deliberately NOT retrofitted: contracts and
+# procurement language written against the 2021 document still need a check that
+# means 2021, not a moving target.
 id: ntia-min-elements
-name: NTIA Minimum Elements for an SBOM
+name: NTIA Minimum Elements for an SBOM (2021; superseded by cisa-2026-min)
 version: "2021-07"
 sources:
   - name: NTIA
-    ref: "The Minimum Elements For a Software Bill of Materials (SBOM), 2021-07-12"
+    ref: "The Minimum Elements For a Software Bill of Materials (SBOM), 2021-07-12. Updated and replaced 2026-07-29 by CISA's 2026 Minimum Elements."
     url: https://www.ntia.gov/report/2021/minimum-elements-software-bill-materials-sbom
 
 schema:
@@ -30,7 +35,9 @@ rules:
 
   - id: ntia-supplier
     scope: component
-    severity: MUST_WHERE_AVAILABLE
+    # The 2021 table lists seven data fields flat, none marked optional or
+    # conditional. Supplier Name is one of them.
+    severity: MUST
     category: Completeness
     citation: "NTIA: Supplier Name"
     field: supplier

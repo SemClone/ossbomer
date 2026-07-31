@@ -1,0 +1,86 @@
+id: eu-cra-annex-i
+name: EU Cyber Resilience Act, Annex I Part II(1)
+version: "2024-11"
+sources:
+  - name: EU CRA
+    ref: "Regulation (EU) 2024/2847, Annex I Part II(1) (vulnerability handling: identify and document components via an SBOM)"
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202402847
+
+# Replaces the former `eu-cra-annex-vii` profile, which cited the wrong clause.
+#
+# Annex VII(8) is one sentence, quoted in full: "where applicable, the software
+# bill of materials, further to a reasoned request from a market surveillance
+# authority provided that it is necessary in order for that authority to be able
+# to check compliance with the essential cybersecurity requirements set out in
+# Annex I." It has no sub-points, names no data field, and is a disclosure
+# trigger rather than a content specification. The old profile cited §8(a),
+# §8(b) and §8(c), which do not exist in the Regulation.
+#
+# The clause that does constrain SBOM content is Annex I Part II(1):
+# "identify and document vulnerabilities and components contained in products
+# with digital elements, including by drawing up a software bill of materials in
+# a commonly used and machine-readable format covering at the very least the
+# top-level dependencies of the products."
+#
+# That yields four requirements and no more: machine-readable format, component
+# identification, component documentation, and top-level dependency coverage.
+# The CRA specifies no SBOM author, no timestamp, no licence field and no
+# component hash. Rules for those have been removed rather than recited under a
+# CRA citation, because a profile that invents obligations is worse than one
+# that omits them: it reports confident conformance against a text nobody wrote.
+
+schema:
+  # "a commonly used and machine-readable format" -- SPDX and CycloneDX both
+  # qualify. The floors here are ossbomer's support matrix, not a CRA demand;
+  # the Regulation names no version.
+  min_versions:
+    spdx: "2.2"
+    cyclonedx: "1.3"
+  deprecated_versions_forbidden: true
+
+rules:
+  - id: cra-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex I Part II(1): identify and document components"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: cra-component-version
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex I Part II(1): identify and document components"
+    field: version
+    validators: [present, non_placeholder]
+
+  - id: cra-component-identifier
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CRA Annex I Part II(1): identify and document components"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: cra-top-level-dependencies
+    scope: dependency
+    severity: MUST
+    category: Completeness
+    # "covering at the very least the top-level dependencies". The IR has no
+    # notion of depth, so this checks the stronger property that every component
+    # appears in the dependency graph. Stricter than the Regulation asks; a
+    # document that passes certainly satisfies the CRA floor, one that fails may
+    # still satisfy it at top level only.
+    citation: "CRA Annex I Part II(1): at the very least the top-level dependencies"
+    validators: [dependency_completeness]
+
+scoring:
+  weights:
+    Completeness: 0.55
+    Accuracy: 0.10
+    Consistency: 0.15
+    Provenance: 0.10
+    Freshness: 0.10
+  thresholds:
+    noassertion_density_max: 0.10

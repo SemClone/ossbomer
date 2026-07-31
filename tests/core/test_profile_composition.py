@@ -11,8 +11,8 @@ def test_extends_and_excludes(tmp_path):
     overlay.write_text(textwrap.dedent("""
         id: acme-cra-overlay
         name: ACME internal CRA overlay
-        extends: [eu-cra-annex-vii]
-        excludes: [cra-component-hash]
+        extends: [eu-cra-annex-i]
+        excludes: [cra-top-level-dependencies]
         rules:
           - id: acme-namespace-tag
             scope: component
@@ -29,11 +29,14 @@ def test_extends_and_excludes(tmp_path):
     # inherited from the public profile without vendoring it
     assert "cra-component-name" in rule_ids
     # excluded public rule is gone
-    assert "cra-component-hash" not in rule_ids
+    assert "cra-top-level-dependencies" not in rule_ids
     # private rule added
     assert "acme-namespace-tag" in rule_ids
-    # inherited schema minima carried over
-    assert profile.schema.min_versions.get("cyclonedx") == "1.5"
+    # inherited schema minima carried over. 1.3 is what eu-cra-annex-i declares:
+    # the Regulation names no spec version, so the floor is ossbomer's support
+    # matrix rather than a CRA demand, with deprecated_versions_forbidden doing
+    # the "not a retired version" work.
+    assert profile.schema.min_versions.get("cyclonedx") == "1.3"
 
 
 def test_overlay_search_path_env(tmp_path, monkeypatch):

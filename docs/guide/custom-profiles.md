@@ -68,7 +68,7 @@ your own additions:
 ```yaml
 id: acme-shipping-bar
 name: ACME shipping bar
-extends: [eu-cra-annex-vii, fedramp-sbom]
+extends: [eu-cra-annex-i, fedramp-sbom]
 
 rules:
   - id: acme-namespace-tag
@@ -90,8 +90,8 @@ updates reach you without a merge.
 
 ```yaml
 id: acme-shipping-bar
-extends: [eu-cra-annex-vii]
-excludes: [cra-component-hash]
+extends: [eu-cra-annex-i]
+excludes: [cra-top-level-dependencies]
 ```
 
 Rule ids are effectively API, so name yours deliberately if others might extend
@@ -129,7 +129,7 @@ Bind a use case, and optionally override individual identifiers:
 ```yaml
 id: acme-mobile
 name: ACME mobile release gate
-extends: [eu-cra-annex-vii]
+extends: [eu-cra-annex-i]
 
 license_policy:
   engine: ospac
