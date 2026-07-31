@@ -11,7 +11,7 @@ Most SBOM tools answer one question. ossbomer answers three in a single pass:
 You pick a profile, which is one YAML file binding all three. So "does this SBOM
 meet the EU CRA" is one argument instead of three tool runs and a spreadsheet.
 
-Twelve profiles ship with it, covering NTIA, CISA 2025, EU CRA, BSI TR-03183,
+Thirteen profiles ship with it, covering CISA 2026, NTIA, EU CRA, BSI TR-03183,
 India CERT-In, OpenChain Telco, FedRAMP, AIBOM, and four license use cases.
 
 Full documentation: **https://semclone.github.io/ossbomer/**

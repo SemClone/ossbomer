@@ -11,10 +11,21 @@ SPDX = os.path.join(FIX, "spdx", "valid", "spdx-2.3.json")
 CDX = os.path.join(FIX, "cyclonedx", "valid", "cdx-1.6.json")
 
 
+def test_declared_version_matches_package_metadata():
+    """`--version` reads installed metadata, so `__version__` is decorative and
+    can drift from pyproject unnoticed. A release bump has to touch both."""
+    from importlib.metadata import version as dist_version
+
+    import ossbomer
+
+    assert ossbomer.__version__ == dist_version("ossbomer")
+
+
 def test_profiles_command_lists_catalog():
     result = CliRunner().invoke(cli, ["profiles"])
     assert result.exit_code == 0
     assert "ntia-min-elements" in result.output
+    assert "cisa-2026-min" in result.output
     assert "eu-cra-annex-vii" in result.output
 
 

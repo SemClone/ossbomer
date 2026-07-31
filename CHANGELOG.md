@@ -6,6 +6,51 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-30
+
+### Added
+- **`cisa-2026-min` profile.** CISA published the 2026 Minimum Elements for a
+  Software Bill of Materials on 2026-07-29, co-sealed by seventeen international
+  cybersecurity bodies. It "updates and replaces" the 2021 NTIA minimum elements
+  that shipped as `ntia-min-elements`. The profile covers all seventeen data
+  fields in its Appendix A: ten are new (SBOM Author Signature, SBOM Data Format
+  Name, SBOM Data Format Version, SBOM Generation Context, SBOM Tool Name, SBOM
+  Tool Version, SBOM Version, Component Hash Value, Component Hash Algorithm,
+  Component License) and four are renamed from 2021 (Supplier Name to Component
+  Producer, Other Identifiers to Component Identifiers, Author of SBOM Data to
+  SBOM Author, Version of the Component to Component Version).
+- `Document.sbom_version`, `Document.lifecycles` and `Document.tool_versions` in
+  the IR, with parser support for both CycloneDX shapes. Four of the new
+  elements had no field to read: CycloneDX carries the BOM revision at the
+  document root and the generation phase in `metadata.lifecycles`, and tool
+  versions were being dropped on the floor by the metadata mapping. Without
+  these the corresponding rules would have been unsatisfiable by construction.
+- SPDX 2.x tool versions are recovered from the `Tool: name-version` creator
+  convention, and left unset when the creator omits the version rather than
+  guessing.
+
+### Changed
+- `ntia-min-elements` and `cisa-2025-min` now say in their names and sources
+  that they are superseded. Neither is retrofitted: procurement language written
+  against the 2021 document needs a check that still means 2021, and the 2025
+  draft is kept so a run from its comment window stays reproducible.
+- `cisa-2026-min` is standalone rather than extending `ntia-min-elements`.
+  Inheriting would put 2021 rule ids and 2021 citations inside a report claiming
+  conformance with the 2026 document.
+
+### Notes on severity
+- Elements the document lets an author declare unknown (Component Producer,
+  Component Version, Component License, Component Hash Value, Component Hash
+  Algorithm) are `MUST_WHERE_AVAILABLE`: a declared NOASSERTION warns, a wrong
+  value fails.
+- SBOM Author Signature, SBOM Generation Context, SBOM Tool Version and SBOM
+  Version are `SHOULD`. SPDX 2.x has no field for document version or lifecycle
+  phase, and most generators cannot sign. Encoding those as MUST would fail
+  every real SBOM.
+- Component Hash Algorithm accepts only SHA-256 and above. SHA-1 and MD5 are off
+  NIST's approved list, and the document asks for an algorithm "approved by a
+  relevant authority, such as NIST."
+
 ## [2.0.0] - 2026-07-30
 
 The relaunch: the three standalone Xpertians packages (`ossbomer-schema`,
@@ -106,5 +151,6 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/SemClone/ossbomer/releases/tag/v2.0.0

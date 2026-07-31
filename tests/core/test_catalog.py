@@ -13,8 +13,9 @@ SAMPLE = os.path.join(FIX, "cyclonedx", "valid", "cdx-1.6.json")
 CATALOG = list_catalog()
 
 EXPECTED_PRESENT = {
-    "ntia-min-elements", "cisa-2025-min", "eu-cra-annex-vii", "bsi-tr-03183-v2.1",
-    "cert-in-v2.0", "openchain-telco-v1.1", "fedramp-sbom", "aibom-v0.1",
+    "ntia-min-elements", "cisa-2025-min", "cisa-2026-min", "eu-cra-annex-vii",
+    "bsi-tr-03183-v2.1", "cert-in-v2.0", "openchain-telco-v1.1", "fedramp-sbom",
+    "aibom-v0.1",
 }
 
 

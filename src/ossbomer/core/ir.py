@@ -74,6 +74,18 @@ class Document:
     creators: list[str] = field(default_factory=list)
     # The tool-only subset of `creators`.
     tools: list[str] = field(default_factory=list)
+    # Versions of the tools in `tools`, kept as a parallel list rather than
+    # folded into the tool strings so a rule can check "is a version declared"
+    # without parsing names apart. CISA 2026 makes SBOM Tool Version its own
+    # minimum element, distinct from SBOM Tool Name.
+    tool_versions: list[str] = field(default_factory=list)
+    # Version of the SBOM document itself (CISA 2026 "SBOM Version"), distinct
+    # from the spec version of the data format and from the version of the
+    # component the SBOM describes.
+    sbom_version: str | None = None
+    # Software lifecycle phase(s) the SBOM was generated in (CISA 2026 "SBOM
+    # Generation Context"): "pre-build", "build", "post-build" and friends.
+    lifecycles: list[str] = field(default_factory=list)
     supplier: str | None = None
     data_license: str | None = None
     # True when the document carries a signature envelope (COSE/JWS/x509 detached).

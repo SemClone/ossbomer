@@ -16,14 +16,15 @@ use case.
 
 ## The catalog
 
-Twelve profiles ship with the tool. Run `ossbomer profiles` to see them locally.
+Thirteen profiles ship with the tool. Run `ossbomer profiles` to see them locally.
 
 ### Regulations and programs
 
 | Profile | Standard |
 | ------- | -------- |
-| `ntia-min-elements` | NTIA Minimum Elements for an SBOM (2021) |
-| `cisa-2025-min` | CISA 2025 Draft SBOM Minimum Elements |
+| `cisa-2026-min` | CISA 2026 SBOM Minimum Elements |
+| `ntia-min-elements` | NTIA Minimum Elements for an SBOM (2021, superseded) |
+| `cisa-2025-min` | CISA 2025 Draft SBOM Minimum Elements (superseded) |
 | `eu-cra-annex-vii` | EU Cyber Resilience Act, Annex VII §8 |
 | `bsi-tr-03183-v2.1` | BSI TR-03183 Part 2 v2.1 |
 | `cert-in-v2.0` | India CERT-In SBOM Guidelines v2.0 |
@@ -44,13 +45,30 @@ Twelve profiles ship with the tool. Run `ossbomer profiles` to see them locally.
 standard, and its rules sit at SHOULD until the IR carries model, weights, and
 training-data entities.
 
+### Which minimum-elements profile to use
+
+Use `cisa-2026-min`. CISA published the 2026 Minimum Elements on 2026-07-29, and
+it "updates and replaces" the 2021 NTIA document that `ntia-min-elements`
+encodes. It adds ten data fields, renames four, and is co-sealed by seventeen
+international cybersecurity bodies.
+
+The two older profiles still ship and still work:
+
+| Profile | Why it is still here |
+| ------- | -------------------- |
+| `ntia-min-elements` | Contracts and procurement language written against the 2021 document need a check that still means 2021. It is not retrofitted for that reason. |
+| `cisa-2025-min` | The August 2025 draft, whose comment period closed 2025-10-03. Kept so a validation run from the comment window stays reproducible. |
+
+Neither is a moving target. If you want the current baseline, name
+`cisa-2026-min` explicitly rather than expecting the older ids to track it.
+
 ## Regional coverage, and what is missing
 
 By jurisdiction, what ships today:
 
 | Region | Covered by | Status |
 | ------ | ---------- | ------ |
-| United States | `ntia-min-elements`, `cisa-2025-min`, `fedramp-sbom` | Yes |
+| United States | `cisa-2026-min`, `ntia-min-elements`, `fedramp-sbom` | Yes |
 | European Union | `eu-cra-annex-vii` | Yes |
 | Germany | `bsi-tr-03183-v2.1` | Yes |
 | India | `cert-in-v2.0` | Yes |

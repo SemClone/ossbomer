@@ -1,0 +1,202 @@
+id: cisa-2026-min
+name: CISA 2026 SBOM Minimum Elements
+version: "2026-07"
+sources:
+  - name: CISA
+    ref: "2026 Minimum Elements for a Software Bill of Materials (SBOM), 2026-07-29, Appendix A (Table of Minimum Elements Data Fields)"
+    url: https://www.cisa.gov/resources-tools/resources/2026-minimum-elements-software-bill-materials-sbom
+
+# Deliberately standalone rather than `extends: ntia-min-elements`. The 2026
+# document "updates and replaces" the 2021 NTIA minimum elements, renaming four
+# fields (Supplier Name -> Component Producer, Other Identifiers -> Component
+# Identifiers, Author of SBOM Data -> SBOM Author, Version of the Component ->
+# Component Version). Inheriting would carry 2021 rule ids and 2021 citations
+# into a report claiming conformance with the 2026 document.
+
+schema:
+  min_versions:
+    spdx: "2.3"
+    cyclonedx: "1.5"
+  # "Organizations should avoid accepting SBOMs for new software generated in
+  # deprecated versions of any format" (Machine-Processable Data).
+  deprecated_versions_forbidden: true
+
+# Severity mapping. The 2026 document presents every data field as a minimum
+# element, but several carry an explicit escape: if the author cannot determine
+# the value they should say so rather than omit it (Explicitly Identifying
+# Unknown Information). MUST_WHERE_AVAILABLE is that semantic here -- a declared
+# NOASSERTION warns, a wrong value fails, silence warns.
+#
+# SHOULD is reserved for elements that no widely-deployed format can express on
+# both sides: SPDX 2.x has no field for document version or lifecycle phase, and
+# signing is a practice most generators still cannot perform. Encoding those as
+# MUST would fail every real SBOM and teach adopters to ignore the profile.
+# Adopters wanting the stricter reading can override by id in an overlay.
+
+rules:
+  # ---- SBOM Metadata --------------------------------------------------------
+
+  - id: cisa26-sbom-author
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "CISA 2026 Appendix A: SBOM Author"
+    field: creators
+    validators: [present, non_placeholder]
+
+  - id: cisa26-sbom-author-signature
+    scope: document
+    severity: SHOULD
+    category: Provenance
+    citation: "CISA 2026 Appendix A: SBOM Author Signature"
+    validators: [signed_with_x509]
+
+  - id: cisa26-sbom-data-format-name
+    scope: document
+    severity: MUST
+    category: Consistency
+    citation: "CISA 2026 Appendix A: SBOM Data Format Name"
+    # Satisfied structurally: a document that parsed declared a format ossbomer
+    # recognises. Kept as an explicit rule so the report enumerates every
+    # minimum element rather than silently assuming this one.
+    validators:
+      - name: format_version_at_least
+        min_versions:
+          spdx: "2.0"
+          cyclonedx: "1.0"
+
+  - id: cisa26-sbom-data-format-version
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "CISA 2026 Appendix A: SBOM Data Format Version"
+    validators:
+      - name: format_version_at_least
+        min_versions:
+          spdx: "2.3"
+          cyclonedx: "1.5"
+
+  - id: cisa26-sbom-generation-context
+    scope: document
+    severity: SHOULD
+    category: Provenance
+    citation: "CISA 2026 Appendix A: SBOM Generation Context"
+    # CycloneDX 1.5+ metadata.lifecycles. SPDX 2.x has no equivalent, so this
+    # can only warn there; that gap is the format's, not the document's.
+    field: lifecycles
+    validators: [present, non_placeholder]
+
+  - id: cisa26-sbom-timestamp
+    scope: document
+    severity: MUST
+    category: Freshness
+    citation: "CISA 2026 Appendix A: SBOM Timestamp"
+    field: timestamp
+    validators: [present, rfc3339_utc]
+
+  - id: cisa26-sbom-tool-name
+    scope: document
+    severity: MUST
+    category: Provenance
+    citation: "CISA 2026 Appendix A: SBOM Tool Name"
+    field: tools
+    validators: [present, non_placeholder]
+
+  - id: cisa26-sbom-tool-version
+    scope: document
+    severity: SHOULD
+    category: Provenance
+    citation: "CISA 2026 Appendix A: SBOM Tool Version"
+    field: tool_versions
+    validators: [present, non_placeholder]
+
+  - id: cisa26-sbom-version
+    scope: document
+    severity: SHOULD
+    category: Consistency
+    citation: "CISA 2026 Appendix A: SBOM Version"
+    field: sbom_version
+    validators: [present, non_placeholder]
+
+  # ---- Component Data -------------------------------------------------------
+
+  - id: cisa26-component-producer
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Completeness
+    citation: "CISA 2026 Appendix A: Component Producer"
+    field: supplier
+    validators: [present, non_placeholder]
+
+  - id: cisa26-component-dependency-relationship
+    scope: dependency
+    severity: MUST
+    category: Completeness
+    citation: "CISA 2026 Appendix A: Component Dependency Relationship"
+    validators: [dependency_completeness]
+
+  - id: cisa26-component-hash-value
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Accuracy
+    citation: "CISA 2026 Appendix A: Component Hash Value"
+    field: hashes
+    validators: [present]
+
+  - id: cisa26-component-hash-algorithm
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Accuracy
+    citation: "CISA 2026 Appendix A: Component Hash Algorithm"
+    field: hashes
+    # "The algorithm should be approved by a relevant authority, such as NIST."
+    # SHA-1 and MD5 are excluded: both are off NIST's approved list for
+    # integrity, and a hash nobody should trust is worse than a declared unknown.
+    validators:
+      - name: hash_algorithm_in_set
+        algs: [SHA-256, SHA-384, SHA-512, SHA3-256, SHA3-384, SHA3-512]
+
+  - id: cisa26-component-identifiers
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CISA 2026 Appendix A: Component Identifiers"
+    field: purl
+    validators: [present, purl_wellformed]
+
+  - id: cisa26-component-license
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Accuracy
+    citation: "CISA 2026 Appendix A: Component License"
+    field: licenses
+    validators: [present, spdx_license_expression]
+
+  - id: cisa26-component-name
+    scope: component
+    severity: MUST
+    category: Completeness
+    citation: "CISA 2026 Appendix A: Component Name"
+    field: name
+    validators: [present, non_placeholder]
+
+  - id: cisa26-component-version
+    scope: component
+    severity: MUST_WHERE_AVAILABLE
+    category: Completeness
+    citation: "CISA 2026 Appendix A: Component Version"
+    field: version
+    validators: [present, non_placeholder]
+
+scoring:
+  # Provenance is weighted above the 2021-era profiles because six of the
+  # seventeen elements are now SBOM Metadata about authorship and tooling.
+  weights:
+    Completeness: 0.30
+    Accuracy: 0.25
+    Consistency: 0.10
+    Provenance: 0.25
+    Freshness: 0.10
+  thresholds:
+    version_coverage_min: 0.90
+    noassertion_density_max: 0.15
