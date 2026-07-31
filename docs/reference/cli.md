@@ -35,10 +35,10 @@ ossbomer validate --profile NAME [--profile NAME ...] --file PATH
 
 | Flag | Required | Default | Description |
 | ---- | -------- | ------- | ----------- |
-| `--profile NAME` | yes | — | Profile to validate against. Repeat for several; each is evaluated independently. |
-| `--file PATH` | yes | — | Path to the SBOM. Must exist. |
+| `--profile NAME` | yes | none | Profile to validate against. Repeat for several; each is evaluated independently. |
+| `--file PATH` | yes | none | Path to the SBOM. Must exist. |
 | `--format` | no | `console` | One of `console`, `json`, `sarif`. |
-| `--profile-path DIR` | no | — | Extra directories to search for profiles, separated by the platform path separator (`:` on Linux and macOS, `;` on Windows). |
+| `--profile-path DIR` | no | none | Extra directories to search for profiles, separated by the platform path separator (`:` on Linux and macOS, `;` on Windows). |
 
 Format notes:
 

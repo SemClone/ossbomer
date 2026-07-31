@@ -6,6 +6,27 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-31
+
+### Fixed
+- Console output no longer contains em dashes. Findings separated the rule id
+  from the message with one, profile display names for the four `license-*`
+  profiles carried one, and the license layer joined a remediation hint with one.
+  All are plain punctuation now.
+- The README example showed output the tool does not produce. It claimed a
+  profile name of "NTIA Minimum Elements for an SBOM" while the tool prints
+  "(2021; superseded by cisa-2026-min)" after it. The example is copied from a
+  real run now, and uses `cisa-2026-min` rather than steering readers at a
+  superseded profile.
+- The README's exit code description omitted that a withdrawn profile exits 2.
+- Em dashes removed from the documentation, including three sample output blocks
+  in the getting-started guide that showed the old separator and so no longer
+  matched what the tool prints.
+
+### Added
+- The README describes license normalization, which shipped in 2.1.0 and was not
+  mentioned anywhere a PyPI visitor would see.
+
 ## [2.1.0] - 2026-07-30
 
 This release changes rule ids and verdicts, not only the profile catalog.
@@ -344,6 +365,7 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/SemClone/ossbomer/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/SemClone/ossbomer/releases/tag/v2.0.0

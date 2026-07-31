@@ -1,9 +1,9 @@
 id: license-internal
-name: License policy — internal use only
+name: License policy for internal use only
 version: "1.0"
 sources:
   - name: OSPAC
-    ref: "Open Source Policy as Code — default enterprise policy"
+    ref: "Open Source Policy as Code, default enterprise policy"
     url: https://pypi.org/project/ospac/
 
 # Internal use is not distribution, so copyleft obligations are largely not triggered. Do not use this profile for anything that ships.

@@ -63,9 +63,9 @@ Quality score: 63 / 100
   Provenance:   68
   Freshness:    70
 Top issues:
-  1. Freshness: ntia-timestamp — rfc3339_utc: '2010-01-29T18:30:22' lacks a UTC/timezone designator [document]
-  2. Completeness: ntia-unique-identifier — present: field is absent or empty [components[0]:glibc@2.11.1]
-  3. Completeness: ntia-unique-identifier — present: field is absent or empty [components[2]:Saxon@8.8]
+  1. Freshness: ntia-timestamp: rfc3339_utc: '2010-01-29T18:30:22' lacks a UTC/timezone designator [document]
+  2. Completeness: ntia-unique-identifier: present: field is absent or empty [components[0]:glibc@2.11.1]
+  3. Completeness: ntia-unique-identifier: present: field is absent or empty [components[2]:Saxon@8.8]
 ============================================================
 ```
 
