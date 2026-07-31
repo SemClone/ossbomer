@@ -30,6 +30,7 @@ which is worse than reporting that it could not be resolved.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -194,6 +195,79 @@ class LicenseDeclaration:
         return self.normalized if self.normalized is not None else self.raw
 
 
+# The function ospac would expose to become the single source of alias data.
+# Preferred over reading its shipped records, and absent today: see
+# `_ospac_aliases` for what happens meanwhile.
+OSPAC_ALIAS_API = "license_aliases"
+
+
+@lru_cache(maxsize=1)
+def _ospac_aliases() -> dict[str, str]:
+    """Alias data from ospac, if it is installed.
+
+    ospac is the source of truth for license metadata across these tools: it
+    regenerates its records from SPDX releases, so mappings that derive from
+    SPDX belong there rather than being re-curated in every consumer.
+
+    Two ways to get them, tried in order:
+
+    1. ``ospac.license_aliases()`` -- a mapping of lowercased alias to SPDX
+       identifier. This does not exist yet. It is the contract to add there,
+       because it can carry the folk spellings ("Apache2", "BSD-like") that SPDX
+       never publishes and that every consumer currently re-invents.
+    2. The shipped license records, which carry the official long name per
+       identifier ("Apache License 2.0"). Works today and yields ~712 mappings.
+
+    Optional by design. ospac is the ``[oslc]`` extra, while normalization is
+    needed by every profile rather than only the license ones, so the built-in
+    tables must stand alone. Missing ospac costs the long names; it does not stop
+    normalization working.
+    """
+    names: dict[str, str] = {}
+    try:
+        import glob
+        import json as _json
+
+        import ospac
+    except ImportError:
+        return names
+
+    # 1. The public API, once it exists.
+    provider = getattr(ospac, OSPAC_ALIAS_API, None)
+    if callable(provider):
+        try:
+            supplied = provider() or {}
+            if isinstance(supplied, dict):
+                return {_WHITESPACE.sub(" ", str(k)).strip().lower(): str(v)
+                        for k, v in supplied.items() if k and v}
+        # Third-party code and an unstable shape. Fall through to the records
+        # rather than losing normalization entirely, and say so: silently using
+        # a weaker source would make a drop in resolved licenses unexplainable.
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "ospac.%s() failed (%s: %s); falling back to its shipped "
+                "license records", OSPAC_ALIAS_API, type(exc).__name__, exc)
+    # 2. Fall back to the shipped records. Reaching into another package's data
+    #    directory is not a contract, which is exactly why option 1 is preferred.
+    directory = os.path.join(os.path.dirname(ospac.__file__), "data", "licenses", "json")
+    try:
+        paths = glob.glob(os.path.join(directory, "*.json"))
+    except OSError:  # pragma: no cover - unreadable install
+        return names
+    for path in paths:
+        # Third-party data whose layout this package does not control. A single
+        # unreadable or reshaped record must not cost the other 715.
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                record = (_json.load(fh) or {}).get("license") or {}
+            name, spdx_id = record.get("name"), record.get("spdx_id")
+            if name and spdx_id:
+                names[_WHITESPACE.sub(" ", str(name)).strip().lower()] = str(spdx_id)
+        except Exception:  # noqa: BLE001, S112
+            continue
+    return names
+
+
 def _read_overlay(path: str) -> dict[str, Any]:
     """Read one overlay file. YAML covers JSON, so one loader handles both."""
     import yaml
@@ -236,7 +310,10 @@ def _overlay_sources() -> list[dict[str, Any]]:
 @lru_cache(maxsize=1)
 def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...]]:
     """Built-in tables merged with every overlay. Overlays win on conflict."""
-    aliases = {k.lower(): v for k, v in ALIASES.items()}
+    # Layered lowest to highest: ospac's official names, then the curated folk
+    # spellings here (which SPDX never publishes), then adopter overlays.
+    aliases = dict(_ospac_aliases())
+    aliases.update({k.lower(): v for k, v in ALIASES.items()})
     never = set(NEVER_RESOLVE)
     separators = list(SEPARATOR_REWRITES)
     for overlay in _overlay_sources():
@@ -257,6 +334,7 @@ def reset_caches() -> None:
     answering from the old ones.
     """
     _tables.cache_clear()
+    _ospac_aliases.cache_clear()
     normalize.cache_clear()
 
 

@@ -140,6 +140,12 @@ different results than they did on 2.0.0. The specifics are immediately below.
   into `cisa-2026-min` and the four `license-*` profiles. The second reports a
   valid expression declared in the free-text slot, which a consumer reading only
   `expression` and `license.id` would miss entirely.
+- License name mappings are read from ospac when it is installed, rather than
+  re-curated here. ospac regenerates a record per SPDX identifier from SPDX
+  releases, so its ~712 official long names stay current without a release here.
+  Read through `ospac.license_aliases()` if that function exists, otherwise from
+  its shipped records; ospac remains optional and strictly additive, since
+  normalization is used by every profile while ospac is only the `[oslc]` extra.
 - The tables extend without editing the package, via
   `OSSBOMER_LICENSE_ALIASES` files or an `ossbomer.license_aliases` entry point.
   Overlays win on conflict in both directions.

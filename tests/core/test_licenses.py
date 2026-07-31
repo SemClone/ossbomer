@@ -251,3 +251,67 @@ def test_a_broken_overlay_file_is_an_operator_error(tmp_path, monkeypatch):
     finally:
         monkeypatch.delenv(ENV_ALIASES, raising=False)
         reset_caches()
+
+
+def test_ospac_alias_api_is_preferred_when_it_exists(monkeypatch):
+    """ospac is the source of truth for license metadata across these tools, so
+    when it grows a `license_aliases()` function that becomes the supply. Until
+    then the shipped license records are read instead, which is a fallback and
+    not a contract."""
+    import ospac
+
+    from ossbomer.core.licenses import reset_caches
+
+    monkeypatch.setattr(ospac, "license_aliases",
+                        lambda: {"ACME House Style v1": "LicenseRef-ACME-1.0"},
+                        raising=False)
+    reset_caches()
+    try:
+        assert normalize("acme house style v1", SOURCE_NAME).normalized == \
+            "LicenseRef-ACME-1.0"
+    finally:
+        monkeypatch.delattr(ospac, "license_aliases", raising=False)
+        reset_caches()
+
+
+def test_a_broken_ospac_api_falls_back_rather_than_losing_normalization(monkeypatch):
+    import ospac
+
+    from ossbomer.core.licenses import reset_caches
+
+    def exploding():
+        raise RuntimeError("upstream changed shape")
+
+    monkeypatch.setattr(ospac, "license_aliases", exploding, raising=False)
+    reset_caches()
+    try:
+        # Falls back to the shipped records, which carry the official long name.
+        assert normalize("Apache License 2.0", SOURCE_NAME).normalized == "Apache-2.0"
+    finally:
+        monkeypatch.delattr(ospac, "license_aliases", raising=False)
+        reset_caches()
+
+
+def test_normalization_works_without_ospac_at_all(monkeypatch):
+    """ospac is the [oslc] extra, but normalization is used by every profile.
+    The built-in tables have to stand alone."""
+    import builtins
+
+    from ossbomer.core.licenses import reset_caches
+
+    real_import = builtins.__import__
+
+    def no_ospac(name, *args, **kwargs):
+        if name == "ospac":
+            raise ImportError("ospac not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_ospac)
+    reset_caches()
+    try:
+        assert normalize("Apache 2", SOURCE_NAME).normalized == "Apache-2.0"
+        assert normalize("MIT", SOURCE_NAME).normalized == "MIT"
+        assert normalize("BSD", SOURCE_NAME).normalized is None
+    finally:
+        monkeypatch.setattr(builtins, "__import__", real_import)
+        reset_caches()

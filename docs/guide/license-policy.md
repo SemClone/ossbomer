@@ -53,6 +53,23 @@ Unresolved text still reaches policy verbatim, because a policy may list the
 exact string and "unknown" is a reviewable answer. It is reported as unresolved
 either way.
 
+### Where the mappings come from
+
+Three layers, lowest to highest, so the more specific always wins:
+
+| Layer | Supplies | Refreshed by |
+| ----- | -------- | ------------ |
+| ospac, when installed | ~712 official SPDX long names | ospac's own regeneration from SPDX releases |
+| ossbomer built-ins | folk spellings SPDX never publishes (`apache2`, `expat`, `new bsd`) | a release here |
+| Your overlays | anything you need | you |
+
+ospac is the source of truth for license metadata across these tools, so
+anything derived from SPDX is read from it rather than re-curated here. It is
+read through `ospac.license_aliases()` if that exists, otherwise from its shipped
+license records. Neither is required: ospac is the `[oslc]` extra while
+normalization is used by every profile, so the built-in tables stand alone and
+ospac is strictly additive.
+
 ### Extending the tables
 
 License spellings drift, and you know your own suppliers' habits better than any
