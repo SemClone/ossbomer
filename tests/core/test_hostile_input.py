@@ -64,7 +64,7 @@ def test_no_validator_raises_on_hostile_input(name):
         assert isinstance(msg, str), f"{name} returned a non-str message for {value!r}"
 
 
-def test_engine_turns_a_raising_validator_into_a_finding():
+def test_engine_turns_a_raising_validator_into_a_finding(request):
     """The safety net for validators this repository does not own.
 
     Third parties register their own through the `ossbomer.validators` entry
@@ -76,6 +76,10 @@ def test_engine_turns_a_raising_validator_into_a_finding():
     @V.register("_explodes_for_test")
     def _boom(value, ctx, params):
         raise RuntimeError("upstream parser fell over")
+
+    # The registry is process-wide, so leaving this behind changes what other
+    # tests see from V.available().
+    request.addfinalizer(lambda: V._REGISTRY.pop("_explodes_for_test", None))
 
     sbom = Sbom(sbom_format="cyclonedx", spec_version="1.6", encoding="json",
                 components=[Component(name="x", version="1.0")])

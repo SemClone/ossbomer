@@ -201,6 +201,21 @@ different results than they did on 2.0.0. The specifics are immediately below.
   BSI and CERT-In reserve copyright without a reuse grant, so those are recorded
   by URL and checksum rather than redistributed.
 
+### Documentation
+- The validator table in the CLI reference listed fourteen while eighteen ship,
+  so `declared`, `hash_wellformed`, `license_spdx_normalized` and
+  `license_in_spdx_field` were undiscoverable for anyone reading the docs rather
+  than running the command. It is now a table saying what each one passes on.
+- New reference for what `field` can name, per scope. There was none, and 2.1.0
+  added four IR fields (`sbom_version`, `lifecycles`, `tool_versions`,
+  `license_declarations`) with nowhere to describe them.
+- `OSSBOMER_LICENSE_ALIASES` is listed alongside `OSSBOMER_PROFILE_PATH` in a new
+  environment variable table.
+- Exit code 2 now documents the withdrawn-profile case.
+- `tests/test_docs_match_code.py` fails when a validator, profile or environment
+  variable exists in code but not in the docs. The validator list had already
+  drifted once; this is how it stops.
+
 ### Notes on severity
 - Every rule in `cisa-2026-min` is MUST. Appendix A is a flat table of seventeen
   data fields and the document never marks one optional, recommended,

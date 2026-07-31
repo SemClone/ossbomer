@@ -106,16 +106,33 @@ ossbomer validators
 
 The shipped set:
 
-```
-dependency_completeness   known_unknowns_declared   references_vex
-format_regex              non_placeholder           rfc3339_utc
-format_version_at_least   present                   semver_or_calver
-format_version_not_deprecated  purl_wellformed      signed_with_x509
-hash_algorithm_in_set     spdx_license_expression
-```
+| Validator | Passes when |
+| --------- | ----------- |
+| `present` | The field has a value that is not `NOASSERTION`, `NONE` or empty. |
+| `declared` | The field has a value **or** an explicit `NOASSERTION`. Silence fails. Use where a standard lets an author say they do not know. |
+| `non_placeholder` | The value is not `TODO`, `TBD`, `changeme`, `n/a` and friends. |
+| `format_regex` | The value matches `pattern`. |
+| `rfc3339_utc` | The timestamp parses as RFC 3339 and carries a timezone. |
+| `semver_or_calver` | The version looks like SemVer or CalVer. |
+| `purl_wellformed` | The value parses as a Package URL. |
+| `spdx_license_expression` | The string parses as an SPDX expression. |
+| `license_spdx_normalized` | Every declaration resolves to SPDX. Reads the declarations, so it can say "unresolvable free text" rather than complaining about expression syntax. |
+| `license_in_spdx_field` | No valid SPDX expression is hiding in CycloneDX's free-text `license.name` slot. |
+| `hash_algorithm_in_set` | A hash uses one of `algs`. |
+| `hash_wellformed` | Each digest is hexadecimal and the length its declared algorithm produces. |
+| `format_version_at_least` | The spec version meets `min_versions`. |
+| `format_version_not_deprecated` | The spec version is not one the format's maintainers retired. |
+| `dependency_completeness` | Every component appears in the dependency graph. |
+| `known_unknowns_declared` | A gap is explicit rather than silent. |
+| `references_vex` | The document references VEX or vulnerability data. |
+| `signed_with_x509` | The document carries a signature. |
 
-Plugins registered through the entry point are included, so this reflects what is
-actually installed rather than a fixed list.
+`declared` and `present` differ in one way that matters: `present` fails an
+explicit `NOASSERTION`, `declared` passes it and fails silence instead. Standards
+that ask authors to state what they do not know want the second.
+
+Plugins registered through the entry point are included, so `ossbomer validators`
+reflects what is actually installed rather than this fixed list.
 
 ## Exit codes
 
@@ -123,7 +140,7 @@ actually installed rather than a fixed list.
 | ---- | --------- |
 | `0` | No profile returned FAIL |
 | `1` | At least one profile returned FAIL |
-| `2` | The document could not be parsed, or the invocation was invalid |
+| `2` | The document could not be parsed, the invocation was invalid, or a named profile is withdrawn |
 
 See [Verdicts and exit codes]({{ site.baseurl }}/reference/verdicts) for how a set
 of findings becomes a verdict.
