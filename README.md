@@ -14,23 +14,23 @@ meet the EU CRA" is one argument instead of three tool runs and a spreadsheet.
 Twelve profiles ship with it, covering NTIA, CISA 2025, EU CRA, BSI TR-03183,
 India CERT-In, OpenChain Telco, FedRAMP, AIBOM, and four license use cases.
 
-Full documentation: **https://ovalenzuela.com/ossbomer/**
+Full documentation: **https://semclone.github.io/ossbomer/**
 
 ## Install
 
 Requires Python 3.9 or newer; tested through 3.13.
 
-Version 2.0.0 is not on PyPI yet. The `ossbomer` package published there is still
-the pre-consolidation 0.1.4, which has no profile engine. Until 2.0.0 ships:
-
 ```bash
-git clone https://github.com/SemClone/ossbomer
-cd ossbomer
-pip install ".[oslc]"
+pip install "ossbomer[oslc]"
 ```
 
 The `oslc` extra pulls in [ospac](https://pypi.org/project/ospac/), which evaluates
-license policy. Every `license-*` profile needs it.
+license policy. Every `license-*` profile needs it. Plain `pip install ossbomer`
+works if you only need schema and conformance.
+
+Upgrading from 0.1.4 is a breaking change: that release predates the profile
+engine, and the per-layer commands it shipped now behave differently. See the
+[changelog](https://github.com/SemClone/ossbomer/blob/main/CHANGELOG.md).
 
 ## Use
 
@@ -78,12 +78,12 @@ and `spdx-tools` rather than vendored schemas.
 
 | | |
 | --- | --- |
-| [Getting started](https://ovalenzuela.com/ossbomer/getting-started) | Install it and read a result |
-| [Profiles](https://ovalenzuela.com/ossbomer/guide/profiles) | The catalog, and writing your own |
-| [License policy](https://ovalenzuela.com/ossbomer/guide/license-policy) | Use cases, SPDX expressions, overrides |
-| [Using it in CI](https://ovalenzuela.com/ossbomer/guide/ci) | Gating a build, SARIF and code scanning |
-| [Verdicts and exit codes](https://ovalenzuela.com/ossbomer/reference/verdicts) | How findings become one answer |
-| [CLI reference](https://ovalenzuela.com/ossbomer/reference/cli) | Every command and flag |
+| [Getting started](https://semclone.github.io/ossbomer/getting-started) | Install it and read a result |
+| [Profiles](https://semclone.github.io/ossbomer/guide/profiles) | The catalog, and writing your own |
+| [License policy](https://semclone.github.io/ossbomer/guide/license-policy) | Use cases, SPDX expressions, overrides |
+| [Using it in CI](https://semclone.github.io/ossbomer/guide/ci) | Gating a build, SARIF and code scanning |
+| [Verdicts and exit codes](https://semclone.github.io/ossbomer/reference/verdicts) | How findings become one answer |
+| [CLI reference](https://semclone.github.io/ossbomer/reference/cli) | Every command and flag |
 
 ## Contributing
 

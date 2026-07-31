@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-30
+
 The relaunch: the three standalone Xpertians packages (`ossbomer-schema`,
 `ossbomer-conformance`, `ossbomer-oslc`) are consolidated into a single
 profile-driven `ossbomer` distribution.
@@ -103,3 +105,6 @@ profile-driven `ossbomer` distribution.
 - The bundled 136 MB OSSA advisory dataset and `PackageRiskAnalyzer` (license
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
+
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/SemClone/ossbomer/releases/tag/v2.0.0

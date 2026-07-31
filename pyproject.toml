@@ -50,9 +50,11 @@ ossbomer-conformance = "ossbomer.conformance.cli:validate"
 ossbomer-oslc = "ossbomer.oslc.cli:validate"
 
 [project.urls]
-Homepage = "https://github.com/SemClone/ossbomer"
-Documentation = "https://ovalenzuela.com/ossbomer/"
-Source = "https://github.com/SemClone/ossbomer"
+Homepage = "https://semclone.github.io/ossbomer/"
+Documentation = "https://semclone.github.io/ossbomer/"
+Repository = "https://github.com/SemClone/ossbomer"
+Issues = "https://github.com/SemClone/ossbomer/issues"
+Changelog = "https://github.com/SemClone/ossbomer/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
