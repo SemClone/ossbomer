@@ -73,19 +73,25 @@ bytes. Download from the publisher and verify against the hash below.
 | Document | Version / date | Profile | Why not vendored |
 | -------- | -------------- | ------- | ---------------- |
 | [BSI TR-03183-2, Cyber Resilience Requirements for Manufacturers and Products, Part 2: SBOM](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2_v2_1_0.pdf?__blob=publicationFile) | v2.1.0 | `bsi-tr-03183-v2.1` | "© Federal Office for Information Security 2023 - 2025", no reuse grant |
-| [BSI TR-03183-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2_v2_2_0.pdf?__blob=publicationFile) | v2.2.0 | not yet profiled | same |
 | [CERT-In, Technical Guidelines on SBOM, QBOM & CBOM, AIBOM and HBOM](https://www.cert-in.org.in/PDF/TechnicalGuidelines-on-SBOM,QBOM&CBOM,AIBOM_and_HBOM_ver2.0.pdf) | v2.0, 2025-07-09 | `cert-in-v2.0` | Government of India, no reuse grant located |
 
 ```
 dda0ccd9b6148571d1d12241a1618b30027f22bc15e24248fdd21a011e62845c  BSI-TR-03183-2_v2_1_0.pdf
-62818650412344c17bfbac5e1866d86416ccef61988c8c906ae7c535432f93cc  BSI-TR-03183-2_v2_2_0.pdf
 28aa48f329114d665f8e4f8c4d2f33baf4981e29168a318e6e719c11a5ff5151  TechnicalGuidelines-on-SBOM,QBOM&CBOM,AIBOM_and_HBOM_ver2.0.pdf
 ```
 
-{: .note }
-BSI TR-03183-2 v2.2.0 is published and the `bsi-tr-03183-v2.1` profile targets
-v2.1.0. The profile is not stale by accident: it names the version it encodes.
-A v2.2 profile is open work.
+{: .warning }
+BSI's download page links a file named `BSI-TR-03183-2_v2_2_0.pdf`, which looks
+like a newer version. It is not. The file served under that name is a 17-page
+document whose revision history ends at 1.1 (2023-11-28), carries a 2023
+copyright, and contains no 2.x version string anywhere; its PDF title metadata
+declares no version at all. By contrast `BSI-TR-03183-2_v2_1_0.pdf` is 37 pages,
+its title metadata reads "Version 2.1.0", and its history runs to 2.1.0
+(2025-08-20).
+
+So v2.1.0 is the latest confirmed release of Part 2, and `bsi-tr-03183-v2.1`
+targets the current document. Do not build a v2.2 profile from that filename:
+the bytes behind it are older, not newer.
 
 ## Composed rather than transcribed
 

@@ -62,6 +62,51 @@ The two older profiles still ship and still work:
 Neither is a moving target. If you want the current baseline, name
 `cisa-2026-min` explicitly rather than expecting the older ids to track it.
 
+## How much of a standard a profile actually covers
+
+A PASS means every rule in the profile passed. It does not always mean the
+document meets the whole standard, because some standards ask for data an SBOM
+does not carry. Where that is true it is stated here rather than left for you to
+discover from a customer.
+
+### `cert-in-v2.0` covers 8 of 21 fields
+
+CERT-In's Table 5 lists twenty-one minimum data fields per component. This
+profile checks eight: Component Name, Component Version, Component Supplier,
+Component License, Component Dependencies, Author of SBOM Data, Timestamp and
+Unique Identifier.
+
+Thirteen are unchecked, and they fall into two groups.
+
+**Not expressible in an SBOM.** Patch Status, Criticality, End-of-Life Date,
+Usage Restrictions, Vulnerabilities, Component Origin and Component Description
+are judgements your organisation makes about a component, not facts the component
+ships with. Neither SPDX nor CycloneDX has a native field for most of them.
+CERT-In is asking for something wider than an SBOM: a component register, of
+which the SBOM is one input. No tool reading only an SBOM can verify them.
+
+**Expressible, not yet checked.** Checksums or Hashes is the notable one. Both
+formats carry it, every other profile here checks it, and it is simply missing.
+Executable Property, Archive Property, Structured Property and Comments or Notes
+are also representable with some work.
+
+So treat a `cert-in-v2.0` PASS as "the SBOM-verifiable subset of CERT-In is
+satisfied", not as CERT-In conformance. The remaining thirteen need evidence from
+outside the document.
+
+### `openchain-telco-v1.1` cannot reject a non-SPDX document
+
+§3.1 of the Telco Guide requires SPDX, version 2.2 or 2.3. Nothing else
+conforms. This profile sets an SPDX version floor but cannot express "SPDX and
+nothing else", so a CycloneDX document runs through the element checks and can
+report PASS while being non-conformant on format alone.
+
+Until that is fixed, confirm your document is SPDX before trusting a Telco
+verdict. The profile also checks six of the seventeen items §3.2 requires; most
+of the rest are guaranteed by any valid SPDX file, but `CreatorComment`,
+`PackageLicenseDeclared`, `PackageCopyrightText` and the `Relationship`
+requirement are genuinely unchecked.
+
 ## Regional coverage, and what is missing
 
 By jurisdiction, what ships today:

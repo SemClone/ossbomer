@@ -84,12 +84,24 @@ scoring:
     version_coverage_min: 0.95
     license_normalization_min: 0.95
 
-# Not yet covered, and not faked. 3.2 also lists as REQUIRED: DataLicense,
-# DocumentName, DocumentNamespace, CreatorComment (carrying SBOM Build
-# information), PackageDownloadLocation, PackageLicenseDeclared,
-# PackageCopyrightText, and Relationship of at least DESCRIBES and CONTAINS.
-# The IR carries no field for most of these.
+# Coverage, stated plainly. 3.2 lists seventeen REQUIRED items. Six have a rule
+# here: Creator, Created, PackageName, PackageVersion, PackageSupplier and
+# PackageLicenseConcluded.
 #
-# 3.1 also restricts the data format to SPDX 2.2 or 2.3 only. This profile sets
-# an SPDX floor but does not reject CycloneDX or SPDX 3.x, so a CycloneDX
-# document can pass here while being non-conformant to the Guide.
+# Most of the rest are marked "mandatory in SPDX", so a document that parses as
+# valid SPDX carries them by construction and the schema layer already covers
+# them: SPDXVersion, DataLicense, SPDXID, DocumentName, DocumentNamespace,
+# PackageDownloadLocation.
+#
+# Four are genuinely unchecked, because SPDX does not force them:
+#   - CreatorComment, which is where 3.5 SBOM Build information goes
+#   - PackageLicenseDeclared  (mandatory in 2.2, optional in 2.3)
+#   - PackageCopyrightText    (mandatory in 2.2, optional in 2.3)
+#   - Relationship, at least DESCRIBES and CONTAINS
+# The last two matter most: copyright text and declared licence are what an
+# attribution notice is built from, and this profile passes without them.
+#
+# 3.1 also restricts the format to SPDX 2.2 or 2.3 only. This profile sets an
+# SPDX floor but cannot express "SPDX and nothing else", so a CycloneDX document
+# passes here while being non-conformant to the Guide. Fixing that needs a way
+# to declare permitted formats, which the profile schema does not have yet.

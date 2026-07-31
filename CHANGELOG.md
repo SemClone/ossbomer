@@ -91,6 +91,11 @@ follow [Semantic Versioning](https://semver.org/).
     ids citing the document the requirement actually comes from.
 
 ### Added
+- The profiles guide now states how much of each standard a profile actually
+  covers, for the two where a PASS is narrower than the standard: `cert-in-v2.0`
+  checks 8 of 21 fields (13 of the rest are organisational judgements no SBOM
+  carries), and `openchain-telco-v1.1` cannot reject a non-SPDX document even
+  though §3.1 requires SPDX.
 - `docs/sources/` records every document a profile was transcribed from, with
   version, retrieval URL and SHA-256. Documents whose terms permit it are held
   in the repository (CISA 2026 and NTIA 2021 as US Government works, the
