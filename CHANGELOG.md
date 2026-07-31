@@ -6,11 +6,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [3.0.0] - 2026-07-30
+## [2.1.0] - 2026-07-30
 
-Major rather than minor. No Python API changed, but rule ids and verdicts did,
-and for a compliance tool the verdict is the contract. Pinning `>=2,<3` and
-upgrading would have altered CI outcomes silently.
+This release changes rule ids and verdicts, not only the profile catalog.
+Overlays that exclude a rule by id, and CI gates that act on a verdict, will see
+different results than they did on 2.0.0. The specifics are immediately below.
 
 ### Breaking
 - **Rule ids removed.** `eu-cra-annex-vii` loses all eight (`cra-sbom-author`,
@@ -243,6 +243,6 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v3.0.0...HEAD
-[3.0.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v3.0.0
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/SemClone/ossbomer/releases/tag/v2.0.0
