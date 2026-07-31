@@ -58,6 +58,39 @@ follow [Semantic Versioning](https://semver.org/).
 - The `eu-cra-annex-vii` id resolves to an empty, clearly-labelled withdrawn
   profile rather than being deleted, so it stays loadable for anyone with it
   pinned in CI while asserting nothing.
+- **Every remaining profile was re-read against its published source.** The
+  documents, with SHA-256 checksums, are listed in `docs/sources/`. Corrections:
+  - `bsi-tr-03183-v2.1` cited §6.1, §6.2, §6.3 and §7. In TR-03183-2 v2.1.0 §6.1
+    is "Licence identifiers and expressions", §6 has no 6.2 or 6.3, and §7 is
+    "Transitional system". Required data fields are §5.2.1 (SBOM itself) and
+    §5.2.2 (per component); "other unique identifiers" is §5.2.4 and conditional.
+  - `bsi-tr-03183-v2.1` no longer gates on a digital signature. The Guideline
+    mentions signing once, in Appendix 8.1.15: "Ideally, SBOMs should be
+    digitally signed." `require_signature` failed every unsigned SBOM against a
+    requirement BSI never made; it is a SHOULD rule now. The `bsi-tool` rule is
+    removed: §5.2.1 Table 2 has exactly two fields, Creator and Timestamp.
+  - `openchain-telco-v1.1` cited §4 for all seven rules. §4 is "Conformant
+    notice"; the required SPDX elements are §3.2. PURL drops to SHOULD, matching
+    "A package SHOULD be identified by a Package URL (PURL)".
+  - `cert-in-v2.0` cited §5 in its rules and §6 in its sources. The minimum
+    elements are §4.1 Table 5 and §4.2, in the v2.0 guidelines of 2025-07-09.
+  - `ntia-min-elements` had Supplier Name at MUST_WHERE_AVAILABLE. The 2021
+    report lists seven data fields flat with none marked optional; it is MUST.
+- Coverage gaps are stated in the profiles rather than left implicit.
+  `openchain-telco-v1.1` covers seven of the elements §3.2 requires and does not
+  reject CycloneDX, which §3.1 forbids. `cert-in-v2.0` covers eight of the
+  twenty-one fields in Table 5. Both name the missing fields in a comment,
+  because a silent gap reads as coverage.
+- `fedramp-sbom` is unchanged but documented: no FedRAMP publication defining
+  SBOM data fields has been located, and its rules carry no clause citation.
+
+### Added
+- `docs/sources/` records every document a profile was transcribed from, with
+  version, retrieval URL and SHA-256. Documents whose terms permit it are held
+  in the repository (CISA 2026 and NTIA 2021 as US Government works, the
+  OpenChain Telco Guide under CC0, CRA extracts under Decision 2011/833/EU).
+  BSI and CERT-In reserve copyright without a reuse grant, so those are recorded
+  by URL and checksum rather than redistributed.
 
 ### Notes on severity
 - Every rule in `cisa-2026-min` is MUST. Appendix A is a flat table of seventeen

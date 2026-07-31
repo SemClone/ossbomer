@@ -113,6 +113,16 @@ if [ "$1" = "files" ]; then
                 continue
                 ;;
         esac
+
+        # Skip vendored third-party source documents. These are published
+        # standards reproduced verbatim as audit evidence, so their wording is
+        # not ours to edit -- the OpenChain Telco Guide has a section titled
+        # "SBOM Confidentiality", which trips the confidential-markers pattern.
+        case "$file" in
+            docs/sources/documents/*)
+                continue
+                ;;
+        esac
         
         # Check file content
         if [ -f "$file" ]; then

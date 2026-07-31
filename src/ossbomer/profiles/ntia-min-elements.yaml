@@ -35,7 +35,9 @@ rules:
 
   - id: ntia-supplier
     scope: component
-    severity: MUST_WHERE_AVAILABLE
+    # The 2021 table lists seven data fields flat, none marked optional or
+    # conditional. Supplier Name is one of them.
+    severity: MUST
     category: Completeness
     citation: "NTIA: Supplier Name"
     field: supplier

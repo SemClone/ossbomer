@@ -6,14 +6,17 @@ sources:
     ref: "BSI TR-03183 Cyber Resilience Requirements for Manufacturers and Products, Part 2: Software Bill of Materials (SBOM), Version 2.1.0"
     url: https://www.bsi.bund.de/dok/TR-03183-en
   - name: BSI
-    ref: "BSI TR-03183 Part 2 §5 (SBOM formats), §6 (Required data fields), §7 (Verification)"
-    url: https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2.pdf
+    ref: "BSI TR-03183 Part 2 v2.1.0: §4 (SBOM formats), §5.2.1 (Required data fields for the SBOM itself), §5.2.2 (Required data fields for each component), §5.2.4 (Additional data fields for each component)"
+    url: https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2_v2_1_0.pdf?__blob=publicationFile
 
 schema:
   min_versions:
     spdx: "3.0.1"
     cyclonedx: "1.6"
-  require_signature: true
+  # No require_signature. The Guideline never mandates one: the sole mention is
+  # Appendix 8.1.15, "Ideally, SBOMs should be digitally signed so recipients can
+  # verify their authenticity." That is advisory prose in the explanations
+  # appendix, so it is a SHOULD rule below rather than a schema gate.
   deprecated_versions_forbidden: true
 
 rules:
@@ -21,31 +24,24 @@ rules:
     scope: document
     severity: MUST
     category: Provenance
-    citation: "BSI TR-03183-2 §6.1: SBOM-Author"
+    citation: "BSI TR-03183-2 §5.2.1: SBOM-Author"
     field: creators
-    validators: [present, non_placeholder]
-
-  - id: bsi-tool
-    scope: document
-    severity: MUST
-    category: Provenance
-    citation: "BSI TR-03183-2 §6.1: Tool that created the SBOM"
-    field: tools
     validators: [present, non_placeholder]
 
   - id: bsi-timestamp
     scope: document
     severity: MUST
     category: Freshness
-    citation: "BSI TR-03183-2 §6.1: Timestamp"
+    citation: "BSI TR-03183-2 §5.2.1: Timestamp"
     field: timestamp
     validators: [present, rfc3339_utc]
 
   - id: bsi-signed
     scope: document
-    severity: MUST
+    # Appendix 8.1.15 is advisory ("Ideally ... should"), not a requirement.
+    severity: SHOULD
     category: Provenance
-    citation: "BSI TR-03183-2 §7: Integrity and authenticity (digital signature)"
+    citation: "BSI TR-03183-2 §8.1.15: ideally, SBOMs should be digitally signed"
     field: signed
     validators: [signed_with_x509]
 
@@ -53,7 +49,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "BSI TR-03183-2 §6.2: Component name"
+    citation: "BSI TR-03183-2 §5.2.2: Component name"
     field: name
     validators: [present, non_placeholder]
 
@@ -61,7 +57,7 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "BSI TR-03183-2 §6.2: Version of the component"
+    citation: "BSI TR-03183-2 §5.2.2: Version of the component"
     field: version
     validators: [present, non_placeholder, semver_or_calver]
 
@@ -69,15 +65,18 @@ rules:
     scope: component
     severity: MUST
     category: Completeness
-    citation: "BSI TR-03183-2 §6.2: Supplier of the component"
+    citation: "BSI TR-03183-2 §5.2.2: Component creator"
     field: supplier
     validators: [present, non_placeholder]
 
   - id: bsi-component-identifier
     scope: component
-    severity: MUST
+    # 5.2.4 "Other unique identifiers" (CPE or purl) is an additional field,
+    # required only "if it exists and fulfils the requirements of an SBOM format
+    # specification". That conditional is MUST_WHERE_AVAILABLE, not MUST.
+    severity: MUST_WHERE_AVAILABLE
     category: Completeness
-    citation: "BSI TR-03183-2 §6.2: Unique identifier (purl)"
+    citation: "BSI TR-03183-2 §5.2.4: Other unique identifiers (CPE or purl), if it exists"
     field: purl
     validators: [present, purl_wellformed]
 
@@ -85,7 +84,7 @@ rules:
     scope: component
     severity: MUST
     category: Accuracy
-    citation: "BSI TR-03183-2 §6.2: Licence (SPDX expression)"
+    citation: "BSI TR-03183-2 §5.2.2: Distribution licences"
     field: licenses
     validators: [present, spdx_license_expression]
 
@@ -93,7 +92,7 @@ rules:
     scope: component
     severity: MUST
     category: Accuracy
-    citation: "BSI TR-03183-2 §6.2: Hash value of the executable component (SHA-512)"
+    citation: "BSI TR-03183-2 §5.2.2: Hash value of the deployable component (SHA-512)"
     field: hashes
     validators:
       - name: hash_algorithm_in_set
@@ -103,7 +102,7 @@ rules:
     scope: dependency
     severity: MUST
     category: Provenance
-    citation: "BSI TR-03183-2 §6.3: Dependencies (dependency relationships complete)"
+    citation: "BSI TR-03183-2 §5.2.2: Dependencies on other components; completeness MUST be clearly indicated"
     validators: [dependency_completeness]
 
 scoring:
@@ -117,3 +116,11 @@ scoring:
     version_coverage_min: 0.98
     noassertion_density_max: 0.02
     license_normalization_min: 0.98
+
+# Not yet covered, and not faked. 5.2.2 also requires, for each component:
+# Filename of the component, Executable property, Archive property and
+# Structured property. The IR carries no field for any of them, so no rule is
+# written rather than pointing one at something that only looks similar. A
+# document can satisfy this profile and still fall short of 5.2.2.
+#
+# BSI TR-03183-2 v2.2.0 is published. This profile targets v2.1.0 and says so.
