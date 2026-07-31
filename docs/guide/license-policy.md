@@ -13,6 +13,25 @@ One question per declared license: given how you ship this, does policy allow it
 1. TOC
 {:toc}
 
+## What this does not answer
+
+The question is "does policy allow the license this SBOM **declares**". It is not
+"is the declared license **correct**".
+
+That boundary is deliberate. Deciding whether a component is really MIT means
+reading the component's source or binary, and this tool reads one document. An
+SBOM that declares MIT for a GPL-3.0 library will pass a `license-*` profile,
+because the policy engine was asked about MIT and MIT is what it was told.
+
+So a PASS here means the declared licenses are acceptable for your distribution
+model. It does not mean the declarations are true. If the SBOM came from a
+scanner you do not control, the declarations carry that scanner's confidence, not
+this tool's.
+
+Verifying declarations against the actual code is a different job, done by
+license detection tools rather than by a document validator. ossbomer does not
+attempt it and does not pretend to.
+
 ## Why the use case decides
 
 The same license is not the same answer everywhere, so a tool that answers
