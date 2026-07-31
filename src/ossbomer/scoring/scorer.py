@@ -31,6 +31,7 @@ class Signals:
     license_normalization: float
     dependency_completeness: float
     supplier_consistency: float
+    hash_consistency: float
     has_tool: bool
     has_supplier: bool
     signed: bool
@@ -63,7 +64,16 @@ def gather_signals(sbom: Sbom) -> Signals:
                 purl_ok += 1
             except ValueError:
                 pass
-    hash_ok = sum(1 for c in comps if c.hashes)
+    # Presence is not enough: a SHA-256 field holding "zzz", or a 40-character
+    # value, looks like an integrity check while verifying nothing. Only
+    # well-formed digests count toward coverage.
+    hash_ok = 0
+    for c in comps:
+        if not c.hashes:
+            continue
+        ok, _ = V.get("hash_wellformed")(c.hashes, V.ValidatorContext(sbom, c, ""), {})
+        if ok:
+            hash_ok += 1
 
     # NOASSERTION density across the three most consequential fields.
     total_fields = 0
@@ -81,6 +91,17 @@ def gather_signals(sbom: Sbom) -> Signals:
     # dependency completeness (reuse the validator's logic)
     ctx = V.ValidatorContext(sbom, sbom, "dependencies")
     dep_ok, _ = V.get("dependency_completeness")(None, ctx, {})
+
+    # Hash consistency: components that carry hashes should carry the same set
+    # of algorithms. A file where half the components are SHA-512 and the rest
+    # SHA-1 cannot be verified uniformly, and usually means two generators were
+    # merged without reconciliation.
+    hashed = [frozenset(k.replace("-", "").lower() for k in c.hashes) for c in comps if c.hashes]
+    if hashed:
+        commonest = max(set(hashed), key=hashed.count)
+        hash_consistency = _ratio(hashed.count(commonest), len(hashed))
+    else:
+        hash_consistency = 1.0
 
     # supplier consistency: same purl should map to one supplier string
     by_purl: dict[str, set] = {}
@@ -104,6 +125,7 @@ def gather_signals(sbom: Sbom) -> Signals:
         license_normalization=_ratio(lic_norm, lic_total),
         dependency_completeness=1.0 if dep_ok else 0.0,
         supplier_consistency=supplier_consistency,
+        hash_consistency=hash_consistency,
         has_tool=bool(sbom.document.tools or sbom.document.creators),
         has_supplier=bool(sbom.document.supplier) or any(c.supplier for c in comps),
         signed=sbom.document.signed,
@@ -139,8 +161,11 @@ def _mean(*xs: float) -> float:
 
 def category_scores(sig: Signals) -> dict[str, int]:
     completeness = _mean(sig.version_coverage, sig.purl_coverage, 1.0 - sig.noassertion_density)
-    accuracy = _mean(sig.license_normalization, sig.purl_coverage, 1.0 if sig.timestamp_ok else 0.4)
-    consistency = _mean(sig.supplier_consistency, sig.license_normalization)
+    accuracy = _mean(sig.license_normalization, sig.purl_coverage,
+                     sig.hash_coverage,
+                     1.0 if sig.timestamp_ok else 0.4)
+    consistency = _mean(sig.supplier_consistency, sig.license_normalization,
+                        sig.hash_consistency)
     provenance = _mean(
         1.0 if sig.has_tool else 0.0,
         1.0 if sig.has_supplier else 0.0,

@@ -99,6 +99,11 @@ different results than they did on 2.0.0. The specifics are immediately below.
     elements are §4.1 Table 5 and §4.2, in the v2.0 guidelines of 2025-07-09.
   - `ntia-min-elements` had Supplier Name at MUST_WHERE_AVAILABLE. The 2021
     report lists seven data fields flat with none marked optional; it is MUST.
+- **`hash_coverage` was computed and then read by nothing.** The signal was
+  gathered on every run and referenced by no scoring category, so hash quality
+  could not affect any score. It now feeds Accuracy, and counts only well-formed
+  digests rather than mere presence. Documents carrying hashes will see Accuracy
+  move as a result.
 - Coverage gaps are stated in the profiles rather than left implicit.
   `openchain-telco-v1.1` covers seven of the elements §3.2 requires and does not
   reject CycloneDX, which §3.1 forbids. `cert-in-v2.0` covers eight of the
@@ -119,6 +124,18 @@ different results than they did on 2.0.0. The specifics are immediately below.
   checks 8 of 21 fields (13 of the rest are organisational judgements no SBOM
   carries), and `openchain-telco-v1.1` cannot reject a non-SPDX document even
   though §3.1 requires SPDX.
+- **`hash_wellformed` validator.** Checks each digest is hexadecimal and the
+  right length for its declared algorithm. `hash_algorithm_in_set` only inspects
+  algorithm names, so a component declaring SHA-256 with a value of `zzz` passed
+  every hash rule. The CycloneDX schema rejects non-hex but its regex accepts any
+  valid digest length, so a SHA-256 carrying a 40-character value was
+  schema-valid and still wrong; SPDX has no equivalent constraint. A truncated or
+  mismatched digest is worse than a missing one, because it looks like an
+  integrity check while verifying nothing. Wired into `cisa-2026-min` and
+  `bsi-tr-03183-v2.1`, the two profiles that check hashes.
+- **`hash_consistency` scoring signal**, feeding Consistency. Components that
+  carry hashes should carry the same algorithms; a file that is half SHA-512 and
+  half SHA-1 usually means two generators were merged without reconciliation.
 - `docs/sources/` records every document a profile was transcribed from, with
   version, retrieval URL and SHA-256. Documents whose terms permit it are held
   in the repository (CISA 2026 and NTIA 2021 as US Government works, the

@@ -97,6 +97,7 @@ rules:
     validators:
       - name: hash_algorithm_in_set
         algs: [SHA-512]
+      - hash_wellformed
 
   - id: bsi-dependency-completeness
     scope: dependency

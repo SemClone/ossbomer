@@ -162,7 +162,9 @@ rules:
     # "If the SBOM author does not have access to the executable component
     # artifact, then the SBOM author should indicate the value is unknown."
     field: hashes
-    validators: [declared]
+    # `declared` requires a digest or an explicit unknown; `hash_wellformed`
+    # rejects one that cannot be a digest of anything (wrong length, non-hex).
+    validators: [declared, hash_wellformed]
 
   - id: cisa26-component-hash-algorithm
     scope: component
@@ -175,6 +177,7 @@ rules:
     validators:
       - name: hash_algorithm_in_set
         algs: [SHA-256, SHA-384, SHA-512, SHA3-256, SHA3-384, SHA3-512]
+      - hash_wellformed
 
   - id: cisa26-component-identifiers
     scope: component

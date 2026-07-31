@@ -165,6 +165,49 @@ def _hash_algorithm_in_set(value: Any, ctx: ValidatorContext, params: dict) -> t
     return True, ""
 
 
+# Hex digest length each algorithm must produce. A value of the wrong length for
+# its declared algorithm is not a hash of that artifact, whatever else it is.
+HASH_HEX_LENGTHS: dict[str, int] = {
+    "md5": 32,
+    "sha1": 40,
+    "sha256": 64, "sha384": 96, "sha512": 128,
+    "sha3256": 64, "sha3384": 96, "sha3512": 128,
+    "blake2b256": 64, "blake2b384": 96, "blake2b512": 128,
+    "blake3": 64,
+}
+HEX_RE = re.compile(r"^[a-fA-F0-9]+$")
+
+
+@register("hash_wellformed")
+def _hash_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """Check each digest is hex and the right length for its declared algorithm.
+
+    `hash_algorithm_in_set` only inspects the algorithm names, so a component
+    declaring SHA-256 with a value of "zzz" passes it. The CycloneDX JSON schema
+    catches non-hex, but its regex accepts any of the valid digest lengths, so a
+    SHA-256 carrying a 40-character value is schema-valid and still wrong. SPDX
+    has no equivalent constraint at all.
+
+    A truncated or mismatched digest is worse than a missing one: it looks like
+    an integrity check while verifying nothing.
+    """
+    hashes = value if isinstance(value, dict) else getattr(ctx.target, "hashes", {}) or {}
+    for alg, digest in hashes.items():
+        key = str(alg).replace("-", "").replace("_", "").lower()
+        text = str(digest).strip()
+        if not text:
+            return False, f"{alg}: empty digest"
+        if not HEX_RE.match(text):
+            return False, f"{alg}: digest is not hexadecimal ({text[:16]!r})"
+        expected = HASH_HEX_LENGTHS.get(key)
+        if expected is None:
+            continue  # unknown algorithm: hash_algorithm_in_set is the gate for that
+        if len(text) != expected:
+            return False, (f"{alg}: digest is {len(text)} hex chars, "
+                           f"expected {expected} for {alg}")
+    return True, ""
+
+
 @register("format_version_at_least")
 def _format_version_at_least(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     minimums = params.get("min_versions", {})
