@@ -39,7 +39,8 @@
           "alg": "SHA-256",
           "content": "abcdef123456789abcdef123456789abcdef123456789abcdef123456789"
         }
-      ]
+      ],
+      "bom-ref": "pkg:npm/example-app@2.0.0"
     },
     "licenses": [
       {
@@ -75,7 +76,8 @@
           "alg": "SHA-256",
           "content": "abcdef123456789abcdef123456789abcdef123456789abcdef123456789"
         }
-      ]
+      ],
+      "bom-ref": "pkg:maven/com.example/library@1.2.3"
     }
   ],
   "dependencies": [
