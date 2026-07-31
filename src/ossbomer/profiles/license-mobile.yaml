@@ -1,9 +1,9 @@
 id: license-mobile
-name: License policy — mobile application
+name: License policy for a mobile application
 version: "1.0"
 sources:
   - name: OSPAC
-    ref: "Open Source Policy as Code — default enterprise policy"
+    ref: "Open Source Policy as Code, default enterprise policy"
     url: https://pypi.org/project/ospac/
 
 # A mobile app is distributed to end users, so distribution obligations apply in full.

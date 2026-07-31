@@ -1,9 +1,9 @@
 id: license-saas
-name: License policy — network service (SaaS)
+name: License policy for a network service (SaaS)
 version: "1.0"
 sources:
   - name: OSPAC
-    ref: "Open Source Policy as Code — default enterprise policy"
+    ref: "Open Source Policy as Code, default enterprise policy"
     url: https://pypi.org/project/ospac/
 
 # Network use triggers AGPL source-disclosure obligations that do not apply to

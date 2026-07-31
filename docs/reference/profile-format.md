@@ -167,7 +167,7 @@ Covered in full on [License policy]({{ site.baseurl }}/guide/license-policy).
 `spdx_id` is required in an override, and must be a single SPDX identifier.
 Overrides are matched by exact identifier, so a rule without one would match
 nothing; that is an error at load time rather than a silently inert rule. An
-`expression` key is rejected for the same reason — use the engine for
+`expression` key is rejected for the same reason, so use the engine for
 expression-level decisions.
 
 ## scoring

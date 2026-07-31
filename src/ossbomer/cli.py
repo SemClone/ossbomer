@@ -21,7 +21,7 @@ from ossbomer.core.profile import list_catalog, load_profile
 @click.group()
 @click.version_option(package_name="ossbomer")
 def cli():
-    """OSSBomer — profile-driven SBOM validation, conformance, and license policy."""
+    """OSSBomer: profile-driven SBOM validation, conformance, and license policy."""
 
 
 @cli.command()

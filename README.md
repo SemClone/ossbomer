@@ -11,8 +11,11 @@ Most SBOM tools answer one question. ossbomer answers three in a single pass:
 You pick a profile, which is one YAML file binding all three. So "does this SBOM
 meet the EU CRA" is one argument instead of three tool runs and a spreadsheet.
 
-Thirteen usable profiles ship with it, covering CISA 2026, NTIA, EU CRA, BSI TR-03183,
-India CERT-In, OpenChain Telco, FedRAMP, AIBOM, and four license use cases.
+Thirteen usable profiles ship with it, covering CISA 2026, NTIA 2021, EU CRA,
+BSI TR-03183, India CERT-In, OpenChain Telco, FedRAMP, AIBOM, and four license
+use cases. Every rule cites the clause it comes from, and the documents those
+citations point at are in the repository with checksums, so a finding can be
+traced rather than taken on trust.
 
 Full documentation: **https://semclone.github.io/ossbomer/**
 
@@ -35,33 +38,42 @@ engine, and the per-layer commands it shipped now behave differently. See the
 ## Use
 
 ```bash
-ossbomer validate --profile ntia-min-elements --file sbom.json
+ossbomer validate --profile cisa-2026-min --file sbom.json
 ```
 
 ```
 ============================================================
-Profile: NTIA Minimum Elements for an SBOM
-Verdict: FAIL (4 MUST violations)
-Quality score: 63 / 100
-  Completeness: 63
-  Accuracy:     41
-  Consistency:  75
-  Provenance:   68
-  Freshness:    70
+Profile: CISA 2026 SBOM Minimum Elements
+Verdict: FAIL (191 MUST violations)
+Quality score: 64 / 100
+  Completeness: 74
+  Accuracy:     60
+  Consistency:  100
+  Provenance:   42
+  Freshness:    60
 Top issues:
-  1. Freshness: ntia-timestamp — rfc3339_utc: '2010-01-29T18:30:22' lacks a UTC/timezone designator [document]
-  2. Completeness: ntia-unique-identifier — present: field is absent or empty [components[0]:glibc@2.11.1]
-  3. Completeness: ntia-unique-identifier — present: field is absent or empty [components[2]:Saxon@8.8]
+  1. Freshness: schema-min-version: cyclonedx 1.4 is below required minimum 1.5 [document.specVersion]
+  2. Provenance: cisa26-sbom-author-signature: signed_with_x509: SBOM is not signed [document]
+  3. Freshness: cisa26-sbom-data-format-version: format_version_at_least: cyclonedx 1.4 is below required minimum 1.5 [document]
 ============================================================
 ```
+
+Most real SBOMs fail a minimum-elements profile today. The verdict answers
+whether the document meets the standard; the score tells you how far off it is.
 
 `--profile` repeats, and each profile is evaluated on its own with its own verdict
 and score. Nothing is averaged between them, because a good NTIA score tells you
 nothing about CRA readiness.
 
 Output can be `console`, `json`, or `sarif`. The exit code works as a CI gate: 0 if
-nothing failed, 1 if a profile failed, 2 if the file could not be read. Nothing
-calls the network.
+nothing failed, 1 if a profile failed, 2 if the file could not be read or the
+profile named is withdrawn. Nothing calls the network.
+
+Declared licenses are normalized to SPDX first, so policy is never asked about a
+string it cannot identify. `GPL-2.0+`, `MIT or Apache-2.0`, npm's
+`MIT || Apache-2.0` and `Apache 2` all resolve. Family names like `BSD` and
+`GPL` do not, because they name no single license, and they are reported as
+unresolved rather than guessed at.
 
 ## Formats
 

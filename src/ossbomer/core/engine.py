@@ -218,7 +218,7 @@ def _license_findings(sbom: Sbom, profile: Profile) -> list[Finding]:
                 f"policy says {decision.action.replace('_', ' ')} "
                 f"for use case {profile.license_use_case!r}")
             if decision.remediation and verdict is not Verdict.PASS:
-                message = f"{message} — {decision.remediation}"
+                message = f"{message}. {decision.remediation}"
 
             findings.append(Finding(
                 f"license-policy:{lic}", "oslc", severity, Category.ACCURACY,

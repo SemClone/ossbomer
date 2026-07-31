@@ -1,6 +1,6 @@
 """Render results in console / JSON / SARIF (R10).
 
-Each profile is rendered as its own independent block/run — no aggregate line
+Each profile is rendered as its own independent block/run, with no aggregate line
 combines scores across profiles.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ def _top_issues(result: ProfileResult, limit: int = 3) -> list[str]:
     out = []
     for f in issues[:limit]:
         cat = f.category.value if f.category else f.layer
-        out.append(f"{cat}: {f.rule_id} — {f.message} [{f.path}]")
+        out.append(f"{cat}: {f.rule_id}: {f.message} [{f.path}]")
     return out
 
 

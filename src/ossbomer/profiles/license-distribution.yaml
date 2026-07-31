@@ -1,9 +1,9 @@
 id: license-distribution
-name: License policy — distributed commercial product
+name: License policy for a distributed commercial product
 version: "1.0"
 sources:
   - name: OSPAC
-    ref: "Open Source Policy as Code — default enterprise policy"
+    ref: "Open Source Policy as Code, default enterprise policy"
     url: https://pypi.org/project/ospac/
 
 # Every declared license in the SBOM is evaluated by ospac for this use case.

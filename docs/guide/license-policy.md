@@ -164,7 +164,7 @@ An override needs a `spdx_id`, and it must be one SPDX identifier rather than an
 expression. Overrides are matched by exact identifier, so an expression would match
 nothing; both an `expression` key and a missing `spdx_id` are rejected when the
 profile loads rather than sitting there doing nothing. To decide on expressions,
-let the engine evaluate them — see below.
+let the engine evaluate them, see below.
 
 ## SPDX expressions
 
