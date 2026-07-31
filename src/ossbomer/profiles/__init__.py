@@ -4,7 +4,7 @@ A profile is a single file that binds all three layers for one regulation or
 program: schema minima + conformance rules + license policy (R2), composable via
 `extends` / `excludes` (R4).
 
-Thirteen profiles ship here (R3): CISA 2026 Minimum Elements, NTIA Minimum
+Thirteen usable profiles ship here (R3): CISA 2026 Minimum Elements, NTIA Minimum
 Elements (2021, superseded), CISA 2025 Draft Minimum (superseded), EU CRA
 (Annex VII), BSI TR-03183, India CERT-In, OpenChain Telco Quality, FedRAMP SBOM,
 AIBOM (net-new), and four license-policy profiles (distribution, mobile, saas,

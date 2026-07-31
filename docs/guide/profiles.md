@@ -16,7 +16,8 @@ use case.
 
 ## The catalog
 
-Fourteen profiles ship with the tool. Run `ossbomer profiles` to see them locally.
+Thirteen usable profiles ship with the tool, plus one withdrawn id that refuses
+to run. Run `ossbomer profiles` to see them locally.
 
 ### Regulations and programs
 
@@ -31,6 +32,7 @@ Fourteen profiles ship with the tool. Run `ossbomer profiles` to see them locall
 | `openchain-telco-v1.1` | OpenChain Telco SBOM Quality v1.1 |
 | `fedramp-sbom` | FedRAMP SBOM requirements |
 | `aibom-v0.1` | AI Bill of Materials (net-new, advisory) |
+| `eu-cra-annex-vii` | **Withdrawn.** Cited clauses that do not exist; refuses to run and exits 2. Use `eu-cra-annex-i`. |
 
 ### License use cases
 

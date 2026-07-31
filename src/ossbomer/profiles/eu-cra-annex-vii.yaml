@@ -17,6 +17,9 @@
 id: eu-cra-annex-vii
 name: "WITHDRAWN: cited a clause that does not exist -- use eu-cra-annex-i"
 version: "withdrawn"
+withdrawn: >-
+  cited CRA Annex VII §8(a)-(c), which do not exist. Annex VII(8) specifies no
+  SBOM data field. Use eu-cra-annex-i, which encodes Annex I Part II(1).
 sources:
   - name: EU CRA
     ref: "WITHDRAWN. Annex VII(8) specifies no SBOM data fields; the cited sub-points §8(a)-(c) do not exist in Regulation (EU) 2024/2847. Superseded by the eu-cra-annex-i profile, which encodes Annex I Part II(1)."

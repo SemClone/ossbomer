@@ -6,7 +6,30 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [2.1.0] - 2026-07-30
+## [3.0.0] - 2026-07-30
+
+Major rather than minor. No Python API changed, but rule ids and verdicts did,
+and for a compliance tool the verdict is the contract. Pinning `>=2,<3` and
+upgrading would have altered CI outcomes silently.
+
+### Breaking
+- **Rule ids removed.** `eu-cra-annex-vii` loses all eight (`cra-sbom-author`,
+  `cra-timestamp`, `cra-component-name`, `cra-component-version`,
+  `cra-component-identifier`, `cra-component-license`, `cra-component-hash`,
+  `cra-dependency-completeness`); `fedramp-sbom` loses all eight `fedramp-*`
+  ids; `bsi-tr-03183-v2.1` loses `bsi-tool`. An overlay with
+  `excludes: [fedramp-component-hash]`, or a consumer keying SARIF or JSON
+  output on those ids, breaks.
+- **`eu-cra-annex-vii` no longer produces a verdict.** It exits 2 with the reason
+  and a pointer to `eu-cra-annex-i`. Emptying its rules was not enough: zero
+  findings computes to PASS, so the withdrawn profile briefly reported success
+  for a standard nothing was checked against, which in a CI gate turns red to
+  green on upgrade.
+- **Verdicts change on unchanged documents.** `ntia-min-elements` moves Supplier
+  Name to MUST, so documents that warned now fail. `bsi-tr-03183-v2.1` drops its
+  signature gate and the `bsi-tool` rule, so documents that failed may now pass.
+  `openchain-telco-v1.1` drops PURL to SHOULD. `fedramp-sbom` inherits the full
+  CISA 2026 set and is substantially stricter.
 
 ### Added
 - **`cisa-2026-min` profile.** CISA published the 2026 Minimum Elements for a
@@ -220,6 +243,6 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.1.0...HEAD
-[2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/SemClone/ossbomer/releases/tag/v2.0.0

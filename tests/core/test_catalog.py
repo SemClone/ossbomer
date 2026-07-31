@@ -58,6 +58,19 @@ def test_withdrawn_profiles_assert_nothing():
     withdrawn = load_profile("eu-cra-annex-vii")
     assert withdrawn.rules == []
     assert "WITHDRAWN" in withdrawn.name
+    assert withdrawn.withdrawn, "no reason recorded, so nothing can refuse it"
+
+
+def test_a_withdrawn_profile_refuses_to_run_rather_than_passing():
+    """Emptying the rules is not enough. compute_verdict over zero findings is
+    PASS, so a profile pulled for citing a clause that does not exist would
+    start reporting success for a standard nothing was checked against. Worse
+    than the original bug, and in a CI gate it turns red to green on upgrade."""
+    import pytest as _pytest
+
+    from ossbomer.core.profile import ProfileError
+    with _pytest.raises(ProfileError, match="withdrawn"):
+        run(SAMPLE, ["eu-cra-annex-vii"])
 
 
 def test_cra_profile_cites_the_clause_that_specifies_content():
@@ -81,3 +94,10 @@ def test_aibom_is_advisory_only():
     """AIBOM v0.1 uses SHOULD rules, so it never hard-FAILs on missing AI fields."""
     (result,) = run(SAMPLE, ["aibom-v0.1"])
     assert result.must_violations == 0
+
+
+def test_documented_profile_count_matches_the_catalog():
+    """The count appears in four places and drifted once already. A usable
+    profile is one that is not withdrawn."""
+    usable = [pid for pid in CATALOG if not load_profile(pid).withdrawn]
+    assert len(usable) == 13, f"catalog has {len(usable)} usable profiles; update the docs"

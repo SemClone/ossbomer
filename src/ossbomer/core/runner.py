@@ -12,7 +12,7 @@ from . import engine
 from .ir import Sbom
 from .model import Category, Finding, ProfileResult, Severity, Verdict
 from .parsers import parse_file
-from .profile import Profile, load_profile
+from .profile import Profile, ProfileError, load_profile
 from .schema_validation import SchemaResult, validate_schema
 
 
@@ -28,6 +28,12 @@ def _schema_finding(schema: SchemaResult) -> Finding:
 
 
 def run_profile(sbom: Sbom, profile: Profile, schema: SchemaResult) -> ProfileResult:
+    # Refuse rather than return a verdict. A withdrawn profile has no rules, and
+    # no findings computes to PASS -- so running one would report success for a
+    # standard nothing was checked against, which is the exact failure that got
+    # it withdrawn.
+    if profile.withdrawn:
+        raise ProfileError(f"profile {profile.id!r} is withdrawn: {profile.withdrawn}")
     findings: list[Finding] = [_schema_finding(schema)]
     findings.extend(engine.evaluate(sbom, profile))
     verdict = engine.compute_verdict(findings)
