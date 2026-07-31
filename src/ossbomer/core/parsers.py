@@ -177,10 +177,50 @@ def _cyclonedx_xml_to_ir(path: str, det: Detection) -> Sbom:
 
 # ---- SPDX 2.x ----------------------------------------------------------------
 
-def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
+def _spdx_parse(path: str, det: Detection):
+    """Parse an SPDX 2.x document, preferring our detection over the filename.
+
+    `parse_anything.parse_file` dispatches on `file_name_to_format(path)`, so it
+    re-decides the encoding from the extension and can contradict `detect_file`,
+    which reads the bytes. A tag-value document named `.json` detected correctly
+    as `spdx 2.2 tagvalue` then failed with "Expecting value: line 1 column 1".
+    SBOMs arrive from APIs, build artifacts and downloads with wrong or absent
+    extensions, and the answer should not depend on the name.
+
+    parse_anything is still tried first: it distinguishes `.rdf.xml` from `.xml`,
+    a split our `encoding` field flattens to "xml". Only when it fails do we
+    dispatch on what the bytes said.
+    """
     from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse
 
-    doc = spdx_parse(path)
+    try:
+        return spdx_parse(path)
+    except Exception as by_name:
+        parsers = {}
+        try:
+            from spdx_tools.spdx.parser.json import json_parser
+            from spdx_tools.spdx.parser.tagvalue import tagvalue_parser
+            from spdx_tools.spdx.parser.xml import xml_parser
+            from spdx_tools.spdx.parser.yaml import yaml_parser
+            parsers = {"json": json_parser, "tagvalue": tagvalue_parser,
+                       "xml": xml_parser, "yaml": yaml_parser}
+        except ImportError:  # pragma: no cover - spdx-tools always present
+            raise by_name from None
+        chosen = parsers.get(det.encoding)
+        if chosen is None:
+            raise
+        try:
+            return chosen.parse_from_file(path)
+        # Broad by design: this is a fallback for a document the name-based
+        # parser already rejected. Whatever the content-based parser raises,
+        # the extension-based error is the more familiar one to report, and
+        # neither should surface as a traceback.
+        except Exception:  # noqa: BLE001
+            raise by_name from None
+
+
+def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
+    doc = _spdx_parse(path, det)
     ci = doc.creation_info
 
     components: list[Component] = []

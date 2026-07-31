@@ -124,6 +124,14 @@ different results than they did on 2.0.0. The specifics are immediately below.
   checks 8 of 21 fields (13 of the rest are organisational judgements no SBOM
   carries), and `openchain-telco-v1.1` cannot reject a non-SPDX document even
   though §3.1 requires SPDX.
+- **SPDX parsing follows the bytes, not the filename.** `detect_file` reads the
+  content, but `spdx_tools`' `parse_anything` dispatches on the extension, so the
+  two could disagree. A tag-value document named `.json` was detected correctly
+  as `spdx 2.2 tagvalue` and then failed with "Expecting value: line 1 column 1",
+  while the same bytes named `.spdx` scored 74. SBOMs arrive from APIs, build
+  artifacts and downloads with wrong or absent extensions. `parse_anything` is
+  still tried first, since it distinguishes `.rdf.xml` from `.xml`, and the
+  detected encoding is the fallback.
 - **The license validator no longer crashes on strings real SBOMs carry.**
   `license_expression.validate()` raises `AttributeError` internally on
   `"MIT (http://mootools.net/license.txt)"`, which appears in the ProtonMail

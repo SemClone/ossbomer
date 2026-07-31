@@ -119,3 +119,42 @@ def test_noassertion_relationship_is_not_a_dependency_edge(tmp_path):
     # The real edge survives; the NOASSERTION one does not.
     assert sbom.dependencies.get("SPDXRef-DOCUMENT") == ["SPDXRef-alpha"]
     assert sbom.dependencies.get("SPDXRef-alpha", []) == []
+
+
+def test_spdx_parsing_follows_the_bytes_not_the_filename(tmp_path):
+    """detect_file reads the content, but spdx-tools' parse_anything dispatches
+    on the extension, so the two could disagree. A tag-value document named
+    `.json` detected correctly and then failed with "Expecting value: line 1
+    column 1". SBOMs arrive from APIs and build artifacts with wrong or missing
+    extensions; the verdict must not depend on the name.
+    """
+    import os
+    import shutil
+
+    from ossbomer.core.detect import detect_file
+    from ossbomer.core.runner import run
+
+    src = os.path.join(os.path.dirname(__file__), "..",
+                       "fixtures", "spdx", "valid", "spdx-2.2.spdx")
+    misnamed = tmp_path / "sbom.json"
+    shutil.copy(src, misnamed)
+
+    assert detect_file(str(misnamed)).encoding == "tagvalue"
+    (correct,) = run(src, ["ntia-min-elements"])
+    (renamed,) = run(str(misnamed), ["ntia-min-elements"])
+    assert renamed.verdict == correct.verdict
+    assert renamed.score == correct.score
+
+
+def test_extensionless_file_still_parses(tmp_path):
+    import os
+    import shutil
+
+    from ossbomer.core.runner import run
+
+    src = os.path.join(os.path.dirname(__file__), "..",
+                       "fixtures", "cyclonedx", "valid", "cdx-1.6.json")
+    bare = tmp_path / "sbom"
+    shutil.copy(src, bare)
+    (result,) = run(str(bare), ["ntia-min-elements"])
+    assert result.verdict.value in {"PASS", "WARN", "FAIL"}
