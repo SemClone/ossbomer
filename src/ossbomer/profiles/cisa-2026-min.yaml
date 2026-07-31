@@ -195,7 +195,12 @@ rules:
     # "If the SBOM author is not aware of the license information, then the SBOM
     # author should indicate that license information is unknown."
     field: licenses
-    validators: [declared, spdx_license_expression]
+    # `license_spdx_normalized` reads the declarations, so it can say a value is
+    # unresolvable free text rather than complaining about expression syntax in
+    # a field that never claimed to be an expression. The document must convey
+    # the identifiers "in a machine-processable fashion", which text nobody can
+    # resolve to SPDX does not.
+    validators: [declared, license_spdx_normalized]
 
   - id: cisa26-component-name
     scope: component

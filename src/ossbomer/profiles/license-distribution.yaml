@@ -37,6 +37,17 @@ rules:
     field: licenses
     validators: [present]
 
+  - id: lic-distribution-spdx-resolvable
+    scope: component
+    severity: SHOULD
+    category: Accuracy
+    # Policy is keyed on SPDX identifiers. A declaration that does not resolve
+    # reaches ospac as an unknown and is evaluated as one, so the licence layer
+    # silently answers a weaker question than it appears to.
+    citation: "ospac policy evaluation requires an SPDX identifier"
+    field: licenses
+    validators: [license_spdx_normalized]
+
 scoring:
   weights:
     Completeness: 0.25

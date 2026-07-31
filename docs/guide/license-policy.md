@@ -13,6 +13,73 @@ One question per declared license: given how you ship this, does policy allow it
 1. TOC
 {:toc}
 
+## Everything is normalized to SPDX first
+
+Policy is keyed on SPDX identifiers, so a declaration has to reach SPDX or be
+reported as not reaching it. An SBOM states a license in whichever slot its
+generator reached for, and ecosystems invented their own operators along the way.
+All of this normalizes:
+
+| Declared | Normalized | How |
+| -------- | ---------- | --- |
+| `mit`, `apache-2.0` | `MIT`, `Apache-2.0` | SPDX parse |
+| `GPL-2.0+` | `GPL-2.0-or-later` | SPDX parse |
+| `MIT or Apache-2.0` | `MIT OR Apache-2.0` | SPDX parse |
+| `Apache-2.0 with LLVM-exception` | `Apache-2.0 WITH LLVM-exception` | SPDX parse |
+| `MIT \|\| Apache-2.0` | `MIT OR Apache-2.0` | npm's documented OR |
+| `MIT/Apache-2.0`, `MIT, Apache-2.0` | `MIT AND Apache-2.0` | separator, read conservatively |
+| `Apache 2`, `Apache2` | `Apache-2.0` | curated alias |
+
+A bare list does not say whether both licenses apply or either does. Policy takes
+the least restrictive operand of an `OR` and the most restrictive of an `AND`, so
+reading a list as `OR` when it meant `AND` under-reports obligations and can pass
+something that should have been denied. Lists are therefore read as `AND`, which
+over-reports and surfaces for review instead.
+
+### What is deliberately not resolved
+
+`BSD`, `GPL`, `LGPL`, `Apache`, `Public Domain`, `BSD-like`, `see LICENSE file`.
+
+Family names do not name a license. `BSD` is 2-clause or 3-clause and the choice
+changes obligations; `GPL` states neither version nor only/or-later. Resolving
+them would produce a confident answer the document does not support.
+
+`GPL` is a special case worth knowing about: the underlying parser *will* resolve
+it, to `GPL-1.0-or-later`, because that is what the deprecated bare key meant.
+Nobody writing `GPL` in an SBOM today means version 1.0, so it is refused
+explicitly.
+
+Unresolved text still reaches policy verbatim, because a policy may list the
+exact string and "unknown" is a reviewable answer. It is reported as unresolved
+either way.
+
+### Extending the tables
+
+License spellings drift, and you know your own suppliers' habits better than any
+shipped table does. Point `OSSBOMER_LICENSE_ALIASES` at one or more files
+(`os.pathsep`-separated):
+
+```yaml
+# acme-licenses.yaml
+aliases:
+  "acme proprietary v2": LicenseRef-ACME-2.0
+  "BSD-like": BSD-3-Clause        # you accept the risk on this one
+never_resolve:
+  - "internal"                     # never let this look like a license
+separators:
+  " plus ": " AND "
+```
+
+```bash
+OSSBOMER_LICENSE_ALIASES=./acme-licenses.yaml \
+  ossbomer validate --profile cisa-2026-min --file sbom.json
+```
+
+Overlays are applied after the built-ins and win on conflict, so a shipped
+mapping you disagree with can be overridden in either direction. Packages can
+also register an `ossbomer.license_aliases` entry point, the same way validators
+extend.
+
 ## What this does not answer
 
 The question is "does policy allow the license this SBOM **declares**". It is not

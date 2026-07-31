@@ -9,7 +9,10 @@ dependency).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # avoids a cycle: licenses.py needs is_null_value from here
+    from .licenses import LicenseDeclaration
 
 # Sentinel-ish tokens that mean "explicitly no value" in SBOMs.
 NULL_TOKENS = frozenset({"", "noassertion", "none", "n/a", "unknown"})
@@ -35,8 +38,14 @@ class Component:
     supplier: str | None = None
     author: str | None = None
     publisher: str | None = None
-    # License expression string(s) as declared (may be SPDX ids, expressions, or free text).
+    # Effective license strings: the normalized SPDX form where one could be
+    # resolved, otherwise the raw text. This is what rules and policy see.
     licenses: list[str] = field(default_factory=list)
+    # The full record for each declaration: what the document said, which slot
+    # it came from, and how it normalized. Lets a rule tell "unpinnable free
+    # text" apart from "valid expression in the wrong field", which the flat
+    # `licenses` list above collapses together.
+    license_declarations: list[LicenseDeclaration] = field(default_factory=list)
     # alg (lowercased) -> hash value
     hashes: dict[str, str] = field(default_factory=dict)
     external_refs: list[dict[str, Any]] = field(default_factory=list)

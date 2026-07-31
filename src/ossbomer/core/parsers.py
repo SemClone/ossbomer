@@ -12,6 +12,14 @@ from typing import Any
 
 from .detect import Detection, detect_file
 from .ir import Component, Document, Sbom
+from .licenses import (
+    SOURCE_EXPRESSION,
+    SOURCE_ID,
+    SOURCE_NAME,
+    SOURCE_SPDX_FIELD,
+    LicenseDeclaration,
+    normalize,
+)
 
 
 class ParseError(ValueError):
@@ -37,19 +45,34 @@ def parse_file(path: str, detection: Detection | None = None) -> Sbom:
 
 # ---- CycloneDX ---------------------------------------------------------------
 
-def _cdx_licenses(entry: dict[str, Any]) -> list[str]:
-    out: list[str] = []
+def _cdx_licenses(entry: dict[str, Any]) -> list[LicenseDeclaration]:
+    """Read all three CycloneDX license slots, keeping track of which is which.
+
+    `expression` and `license.id` are SPDX-typed; `license.name` is free text by
+    specification, used when the generator could not pin an identifier. Flattening
+    them lost that distinction, so free text was reported as bad expression
+    syntax and a well-formed expression in the `name` slot passed silently.
+    """
+    out: list[LicenseDeclaration] = []
     for lic in entry.get("licenses", []) or []:
-        if "expression" in lic:
-            out.append(lic["expression"])
-        elif "license" in lic:
-            lo = lic["license"]
-            out.append(lo.get("id") or lo.get("name") or "")
-    return [x for x in out if x]
+        if not isinstance(lic, dict):
+            continue
+        if lic.get("expression"):
+            out.append(normalize(str(lic["expression"]), SOURCE_EXPRESSION))
+            continue
+        lo = lic.get("license")
+        if not isinstance(lo, dict):
+            continue
+        if lo.get("id"):
+            out.append(normalize(str(lo["id"]), SOURCE_ID))
+        elif lo.get("name"):
+            out.append(normalize(str(lo["name"]), SOURCE_NAME))
+    return out
 
 
 def _cdx_component(entry: dict[str, Any]) -> Component:
     supplier = entry.get("supplier") or {}
+    declarations = _cdx_licenses(entry)
     return Component(
         bom_ref=entry.get("bom-ref"),
         name=entry.get("name"),
@@ -60,7 +83,8 @@ def _cdx_component(entry: dict[str, Any]) -> Component:
         supplier=supplier.get("name") if isinstance(supplier, dict) else None,
         author=entry.get("author"),
         publisher=entry.get("publisher"),
-        licenses=_cdx_licenses(entry),
+        licenses=[d.effective for d in declarations if d.effective],
+        license_declarations=declarations,
         hashes={h["alg"].lower(): h["content"] for h in entry.get("hashes", []) or []
                 if "alg" in h and "content" in h},
         external_refs=entry.get("externalReferences", []) or [],
@@ -230,11 +254,11 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
             if getattr(ref, "reference_type", "") == "purl":
                 purl = ref.locator
                 break
-        licenses = []
+        declarations = []
         for attr in ("license_concluded", "license_declared"):
             val = getattr(pkg, attr, None)
-            if val is not None:
-                licenses.append(str(val))
+            if val is not None and str(val) not in ("None", ""):
+                declarations.append(normalize(str(val), SOURCE_SPDX_FIELD))
         components.append(Component(
             bom_ref=pkg.spdx_id,
             name=pkg.name,
@@ -242,7 +266,8 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
             purl=purl,
             supplier=str(pkg.supplier) if getattr(pkg, "supplier", None) else None,
             author=str(pkg.originator) if getattr(pkg, "originator", None) else None,
-            licenses=[x for x in licenses if x and x != "None"],
+            licenses=[d.effective for d in declarations if d.effective],
+            license_declarations=declarations,
             hashes={c.algorithm.name.lower(): c.value for c in getattr(pkg, "checksums", []) or []},
             raw={"spdx_id": pkg.spdx_id},
         ))

@@ -153,6 +153,58 @@ def _spdx_license_expression(value: Any, ctx: ValidatorContext, params: dict) ->
     return True, ""
 
 
+@register("license_spdx_normalized")
+def _license_spdx_normalized(value: Any, ctx: ValidatorContext,
+                             params: dict) -> tuple[bool, str]:
+    """Every declared license must resolve to SPDX.
+
+    Reads `license_declarations`, so it can say what actually went wrong rather
+    than reporting free text as bad expression syntax. `spdx_license_expression`
+    checks the flat string and cannot tell the two apart.
+
+    An explicit NOASSERTION passes: the document said it does not know, which is
+    what "Explicitly Identifying Unknown Information" asks for. Set
+    `allow_declared_unknown: false` in the rule to require a real license.
+    """
+    declarations = getattr(ctx.target, "license_declarations", None) or []
+    if not declarations:
+        return True, ""  # absence is `declared`/`present`'s job, not this one
+    allow_unknown = params.get("allow_declared_unknown", True)
+    problems = []
+    for d in declarations:
+        if d.resolved:
+            continue
+        if d.declared_unknown:
+            if not allow_unknown:
+                problems.append(f"{d.raw!r} is an explicit unknown")
+            continue
+        problems.append(
+            f"{d.raw!r} (declared in the {d.source!r} field) does not resolve "
+            f"to an SPDX license")
+    if problems:
+        return False, "; ".join(problems[:3])
+    return True, ""
+
+
+@register("license_in_spdx_field")
+def _license_in_spdx_field(value: Any, ctx: ValidatorContext,
+                           params: dict) -> tuple[bool, str]:
+    """A well-formed SPDX expression must not hide in the free-text slot.
+
+    CycloneDX `license.name` is for text that could not be pinned to SPDX. A
+    valid expression there is a generator bug: a consumer reading only
+    `expression` and `license.id` misses the license entirely, even though it is
+    perfectly well formed.
+    """
+    declarations = getattr(ctx.target, "license_declarations", None) or []
+    misplaced = [d for d in declarations if d.misplaced]
+    if misplaced:
+        return False, "; ".join(
+            f"{d.raw!r} is valid SPDX but was declared in the free-text "
+            f"'name' field rather than 'expression'" for d in misplaced[:3])
+    return True, ""
+
+
 @register("purl_wellformed")
 def _purl_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     from packageurl import PackageURL

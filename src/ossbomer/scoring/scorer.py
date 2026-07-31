@@ -83,9 +83,11 @@ def gather_signals(sbom: Sbom) -> Signals:
             if val is None or (isinstance(val, str) and is_null_value(val)):
                 null_fields += 1
 
-    lic_total = sum(len(c.licenses) for c in comps)
-    lic_norm = sum(1 for c in comps for lic in c.licenses
-                   if not is_null_value(lic) and _spdx_expr_ok(lic))
+    # Normalization already happened at parse time and recorded its result, so
+    # this counts declarations that resolved rather than re-parsing strings.
+    declarations = [d for c in comps for d in c.license_declarations]
+    lic_total = len(declarations)
+    lic_norm = sum(1 for d in declarations if d.resolved)
 
     # dependency completeness (reuse the validator's logic)
     ctx = V.ValidatorContext(sbom, sbom, "dependencies")

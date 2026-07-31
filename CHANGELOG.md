@@ -124,6 +124,27 @@ different results than they did on 2.0.0. The specifics are immediately below.
   checks 8 of 21 fields (13 of the rest are organisational judgements no SBOM
   carries), and `openchain-telco-v1.1` cannot reject a non-SPDX document even
   though §3.1 requires SPDX.
+- **Declared licenses are normalized to SPDX at parse time.** CycloneDX offers
+  three license slots and the flat `licenses` list collapsed them, so free text
+  from `license.name` was reported as bad expression syntax while a valid
+  expression sitting in that same slot passed silently. `Component` now carries
+  `license_declarations` recording the raw text, the slot, the normalized form
+  and the method. Handled: `+` suffixes, `-or-later`, lowercase `or`/`and`/
+  `with`, nesting, npm's `||`, and `/`, `,`, `;` separators. Lists resolve to
+  `AND` rather than `OR`, because policy takes the least restrictive operand of
+  an `OR` and mis-reading a list would under-report obligations.
+- Family names (`BSD`, `GPL`, `Apache`, `Public Domain`) are refused rather than
+  guessed. Bare `GPL` needed an explicit denylist entry: the parser resolves it
+  to `GPL-1.0-or-later`, which nobody writing `GPL` today means.
+- New `license_spdx_normalized` and `license_in_spdx_field` validators, wired
+  into `cisa-2026-min` and the four `license-*` profiles. The second reports a
+  valid expression declared in the free-text slot, which a consumer reading only
+  `expression` and `license.id` would miss entirely.
+- The tables extend without editing the package, via
+  `OSSBOMER_LICENSE_ALIASES` files or an `ossbomer.license_aliases` entry point.
+  Overlays win on conflict in both directions.
+- Policy now receives normalized identifiers. Previously `"Apache 2"` reached
+  ospac verbatim and was evaluated as an unknown license.
 - **A validator can no longer end a run.** SBOM fields carry whatever the
   generator put there, and third parties register their own validators through
   the `ossbomer.validators` entry point, so not all code in that loop is
