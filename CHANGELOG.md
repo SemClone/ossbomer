@@ -12,24 +12,35 @@ This release changes rule ids and verdicts, not only the profile catalog.
 Overlays that exclude a rule by id, and CI gates that act on a verdict, will see
 different results than they did on 2.0.0. The specifics are immediately below.
 
-### Breaking
-- **Rule ids removed.** `eu-cra-annex-vii` loses all eight (`cra-sbom-author`,
-  `cra-timestamp`, `cra-component-name`, `cra-component-version`,
-  `cra-component-identifier`, `cra-component-license`, `cra-component-hash`,
-  `cra-dependency-completeness`); `fedramp-sbom` loses all eight `fedramp-*`
-  ids; `bsi-tr-03183-v2.1` loses `bsi-tool`. An overlay with
-  `excludes: [fedramp-component-hash]`, or a consumer keying SARIF or JSON
-  output on those ids, breaks.
-- **`eu-cra-annex-vii` no longer produces a verdict.** It exits 2 with the reason
-  and a pointer to `eu-cra-annex-i`. Emptying its rules was not enough: zero
-  findings computes to PASS, so the withdrawn profile briefly reported success
-  for a standard nothing was checked against, which in a CI gate turns red to
-  green on upgrade.
-- **Verdicts change on unchanged documents.** `ntia-min-elements` moves Supplier
-  Name to MUST, so documents that warned now fail. `bsi-tr-03183-v2.1` drops its
-  signature gate and the `bsi-tool` rule, so documents that failed may now pass.
-  `openchain-telco-v1.1` drops PURL to SHOULD. `fedramp-sbom` inherits the full
-  CISA 2026 set and is substantially stricter.
+### Changed behaviour
+None of this removes a check that was doing useful work. Every item is a
+correction of something that was wrong, so a verdict that changes here was
+wrong before rather than right.
+
+- **`eu-cra-annex-vii` refuses to run.** Its eight rules checked data fields
+  against CRA Annex VII point 8, which is one sentence naming no data field, so
+  all eight were invented. It exits 2 with the reason and points at
+  `eu-cra-annex-i`. Emptying the rules was tried first and was worse: zero
+  findings computes to PASS, so a profile withdrawn for being wrong started
+  reporting success on documents it had previously failed.
+- **`fedramp-sbom` got stricter and gained a source.** Its eight rules listed
+  data fields FedRAMP never published. It composes `cisa-2026-min` now, so eight
+  invented checks became seventeen real ones, reported under `cisa26-*` ids
+  because that is where the requirement comes from.
+- **`bsi-tr-03183-v2.1` stopped requiring things BSI does not.** The signature
+  gate traced to an appendix line reading "ideally, SBOMs should be digitally
+  signed", and `bsi-tool` had no basis at all: the document-level table has two
+  fields, Creator and Timestamp. Unsigned documents that failed now pass, which
+  is the correct answer.
+- **`ntia-min-elements` treats Supplier Name as required.** The 2021 report lists
+  seven data fields flat with none marked optional, so documents that warned now
+  fail.
+- **`openchain-telco-v1.1` treats a PURL as recommended.** The Guide says a
+  package should have one, so it warns rather than fails.
+- **Seventeen check names changed or went with the profiles that invented them.**
+  Switching a check off by name in an overlay, or suppressing one by name in code
+  scanning, needs the new name. `excludes` skips names it cannot find rather than
+  complaining, so it will not say anything.
 
 ### Added
 - **`cisa-2026-min` profile.** CISA published the 2026 Minimum Elements for a
