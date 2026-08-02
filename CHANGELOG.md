@@ -6,6 +6,32 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-08-02
+
+### Fixed
+- `rfc3339_utc` did not implement RFC 3339. It delegated its grammar to
+  `datetime.fromisoformat`, which implements ISO 8601, a superset, and then
+  looked for a timezone designator by substring. It therefore returned PASS for
+  values its own message called invalid: a bare date with an offset
+  (`2026-01-01+00:00`), a time without seconds (`2026-01-01T00:00+00:00`), and
+  an offset carrying seconds (`2026-01-01T00:00:00+00:00:00`). A false PASS is
+  the wrong direction for a conformance tool, since it reports a malformed
+  document as meeting a requirement it does not meet.
+
+  The same check was also too strict, rejecting the lower case `t` and `z`
+  forms that section 5.6 explicitly permits, and impossible instants such as
+  `2026-02-30T00:00:00Z` now fail rather than being reported against whatever
+  the interpreter happened to accept. Leap seconds (section 5.7) are accepted.
+
+  Verdicts no longer depend on the interpreter either: before 3.11,
+  `fromisoformat` rejected fractional seconds of any length but 3 or 6 digits,
+  so `2026-01-01T00:00:00.5Z` passed on some supported Pythons and failed on
+  others.
+
+  No document in the test corpus changes verdict, including the real-world
+  SBOMs under `tests/conformance/`: every generator in it emits conformant
+  timestamps.
+
 ## [2.2.1] - 2026-08-02
 
 ### Fixed
@@ -391,7 +417,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.2...HEAD
+[2.2.2]: https://github.com/SemClone/ossbomer/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/SemClone/ossbomer/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/SemClone/ossbomer/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0

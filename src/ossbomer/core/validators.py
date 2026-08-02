@@ -13,7 +13,7 @@ through the ``ossbomer.validators`` entry-point group (the plugin escape hatch).
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date
 from functools import lru_cache
 from typing import Any, Callable
 
@@ -102,17 +102,52 @@ def _format_regex(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool
     return True, ""
 
 
+# RFC 3339 section 5.6 `date-time`, spelled out rather than delegated to
+# `datetime.fromisoformat`. That function implements ISO 8601, which is a
+# superset: it accepted a bare date, a time without seconds and an offset
+# carrying seconds, none of which are RFC 3339, so the check passed values its
+# own message called invalid. It is also version-dependent -- before 3.11 it
+# rejected fractional seconds of any length but 3 or 6 digits -- which made the
+# verdict depend on the interpreter rather than the document.
+#
+# `partial-time` requires seconds and `time-numoffset` is exactly +-HH:MM, so
+# neither may be omitted or extended. Section 5.6 permits lower case `t` and
+# `z`, and its note permits a space in place of `T` for readability; both are
+# accepted here, and both are unreachable from a real SBOM anyway, since SPDX
+# mandates `YYYY-MM-DDThh:mm:ssZ` and CycloneDX an XSD `dateTime`.
+_RFC3339_LOCAL = r"(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?"
+_RFC3339 = re.compile(_RFC3339_LOCAL + r"(?:[Zz]|[+-](\d{2}):(\d{2}))$")
+_RFC3339_NO_OFFSET = re.compile(_RFC3339_LOCAL + r"$")
+
+
 @register("rfc3339_utc")
 def _rfc3339_utc(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     for v in _as_list(value):
         s = str(v).strip()
-        try:
-            # Accept trailing Z (UTC) or explicit offset.
-            datetime.fromisoformat(s.replace("Z", "+00:00"))
-        except ValueError:
+        m = _RFC3339.match(s)
+        if not m:
+            # A well-formed instant that simply carries no offset is the common
+            # mistake and gets its own message; anything else is malformed.
+            if _RFC3339_NO_OFFSET.match(s):
+                return False, f"{v!r} lacks a UTC/timezone designator"
             return False, f"{v!r} is not an RFC 3339 timestamp"
-        if not (s.endswith("Z") or "+00:00" in s or re.search(r"[+-]\d\d:\d\d$", s)):
-            return False, f"{v!r} lacks a UTC/timezone designator"
+
+        year, month, day, hour, minute, second = (int(g) for g in m.groups()[:6])
+        # Checked as a date and a wall time rather than by building a datetime,
+        # since second 60 is a leap second (section 5.7) and legal here, but no
+        # date library will accept one.
+        if hour > 23 or minute > 59 or second > 60:
+            return False, f"{v!r} is not a real time"
+        try:
+            date(year, month, day)
+        except ValueError:
+            return False, f"{v!r} is not a real date"
+
+        offset_hours, offset_minutes = m.group(7), m.group(8)
+        if offset_hours is not None and (
+            int(offset_hours) > 23 or int(offset_minutes) > 59
+        ):
+            return False, f"{v!r} has an out-of-range UTC offset"
     return True, ""
 
 

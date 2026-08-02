@@ -39,6 +39,47 @@ def test_rfc3339_requires_utc():
     assert V.get("rfc3339_utc")("2010-01-29T18:30:22", _ctx(s), {})[0] is False
 
 
+# The check used to delegate its grammar to `datetime.fromisoformat`, which
+# implements ISO 8601 rather than RFC 3339. It therefore accepted values its own
+# message called invalid -- a false PASS, the worst direction for a conformance
+# tool -- while rejecting the lower case forms section 5.6 explicitly permits.
+
+@pytest.mark.parametrize("value, reason", [
+    ("2026-07-15T10:00:00Z", "canonical"),
+    ("2026-07-15T10:00:00+00:00", "explicit UTC offset, as the SPDX parser emits"),
+    ("2026-07-15T10:00:00+05:30", "a non-UTC offset is still a designator"),
+    ("2020-08-03T01:28:52.765Z", "fractional seconds"),
+    ("2026-01-01T00:00:00.5Z", "fractional seconds of any length"),
+    ("2026-01-01t00:00:00z", "lower case t and z, section 5.6"),
+    ("2026-01-01 00:00:00+00:00", "space for T, the section 5.6 note"),
+    ("2016-12-31T23:59:60Z", "leap second, section 5.7"),
+])
+def test_rfc3339_accepts(value, reason):
+    assert V.get("rfc3339_utc")(value, _ctx(_sbom([])), {})[0] is True, reason
+
+
+@pytest.mark.parametrize("value, reason", [
+    ("2010-01-29T18:30:22", "no offset"),
+    ("2026-01-01+00:00", "a date is not a date-time"),
+    ("2026-01-01T00:00+00:00", "partial-time requires seconds"),
+    ("2026-01-01T00:00:00+00:00:00", "time-numoffset is exactly +-HH:MM"),
+    ("2026-02-30T00:00:00Z", "no such day"),
+    ("2026-01-01T25:00:00Z", "no such hour"),
+    ("2026-01-01T00:00:61Z", "no such second, 60 being the leap second"),
+    ("2026-01-01T00:00:00+99:00", "no such offset"),
+    ("not-a-timestamp", "not a timestamp at all"),
+])
+def test_rfc3339_rejects(value, reason):
+    assert V.get("rfc3339_utc")(value, _ctx(_sbom([])), {})[0] is False, reason
+
+
+def test_rfc3339_names_a_missing_offset_specifically():
+    """The docs quote this message, and it is the one users actually hit."""
+    ok, msg = V.get("rfc3339_utc")("2010-01-29T18:30:22", _ctx(_sbom([])), {})
+    assert ok is False
+    assert msg == "'2010-01-29T18:30:22' lacks a UTC/timezone designator"
+
+
 def test_purl_wellformed():
     s = _sbom([])
     assert V.get("purl_wellformed")("pkg:npm/left-pad@1.3.0", _ctx(s), {})[0] is True
