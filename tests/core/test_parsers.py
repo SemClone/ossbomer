@@ -121,6 +121,59 @@ def test_noassertion_relationship_is_not_a_dependency_edge(tmp_path):
     assert sbom.dependencies.get("SPDXRef-alpha", []) == []
 
 
+# ---- SPDX creation timestamp -------------------------------------------------
+# SPDX 2.x section 6.9 defines `created` as UTC, so spdx-tools parses it into a
+# naive datetime and drops the `Z`. Formatting that naive value produced a
+# string with no offset, which rfc3339_utc was then right to reject: every
+# conformant SPDX document failed the timestamp rule in ntia-min-elements,
+# cisa-2026-min, cert-in-v2.0, bsi-tr-03183-v2.1, openchain-telco-v1.1 and
+# aibom-v0.1, and lost freshness points in the scorer, while an identical
+# CycloneDX timestamp passed.
+
+def test_spdx_created_keeps_a_utc_designator(tmp_path):
+    from ossbomer.core import validators as V
+
+    path = tmp_path / "mini.spdx"
+    path.write_text(_MINI_SPDX)
+    sbom = parse_file(str(path))
+
+    ctx = V.ValidatorContext(sbom, sbom.document, "document.timestamp")
+    ok, msg = V.get("rfc3339_utc")(sbom.document.timestamp, ctx, {})
+    assert ok, msg
+
+
+def test_spdx_created_is_not_shifted_by_the_local_timezone(tmp_path):
+    """The designator must be attached, not converted.
+
+    `astimezone()` would reinterpret the naive value as local time and move the
+    instant; on any machine not running UTC that silently rewrites the
+    document's creation time.
+    """
+    path = tmp_path / "mini.spdx"
+    path.write_text(_MINI_SPDX)
+    sbom = parse_file(str(path))
+    assert sbom.document.timestamp == "2026-01-01T00:00:00+00:00"
+
+
+def test_identical_timestamps_agree_across_formats(tmp_path):
+    """The verdict must describe the document, not the format it arrived in."""
+    from ossbomer.core import validators as V
+
+    spdx_path = tmp_path / "same.spdx"
+    spdx_path.write_text(_MINI_SPDX.replace("2026-01-01T00:00:00Z",
+                                            "2026-07-28T12:00:00Z"))
+    spdx = parse_file(str(spdx_path))
+    cdx = _cdx(tmp_path)
+
+    rule = V.get("rfc3339_utc")
+    verdicts = {
+        fmt: rule(s.document.timestamp,
+                  V.ValidatorContext(s, s.document, "document.timestamp"), {})[0]
+        for fmt, s in (("spdx", spdx), ("cyclonedx", cdx))
+    }
+    assert verdicts == {"spdx": True, "cyclonedx": True}
+
+
 def test_spdx_parsing_follows_the_bytes_not_the_filename(tmp_path):
     """detect_file reads the content, but spdx-tools' parse_anything dispatches
     on the extension, so the two could disagree. A tag-value document named
