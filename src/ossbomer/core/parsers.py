@@ -8,6 +8,7 @@ rules can iterate per component and per dependency (R8).
 from __future__ import annotations
 
 import json
+from datetime import timezone
 from typing import Any
 
 from .detect import Detection, detect_file
@@ -299,10 +300,19 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
             if candidate:
                 tool_versions.append(candidate)
 
+    # SPDX 2.x section 6.9 defines `created` as UTC, so spdx-tools parses it
+    # into a naive datetime and drops the `Z`. Formatting that naive value
+    # yields a string with no offset, which rfc3339_utc is then right to
+    # reject -- a tool artefact that failed every conformant SPDX document on
+    # any profile with a timestamp rule. Restore the UTC the spec guarantees.
+    created = ci.created
+    if created is not None and created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+
     document = Document(
         name=ci.name,
         namespace=ci.document_namespace,
-        timestamp=ci.created.isoformat() if ci.created else None,
+        timestamp=created.isoformat() if created else None,
         creators=[str(c) for c in ci.creators],
         tools=tool_creators,
         tool_versions=tool_versions,

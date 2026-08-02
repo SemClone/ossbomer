@@ -6,7 +6,19 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-08-02
+
 ### Fixed
+- Every conformant SPDX 2.x document failed its profile's timestamp rule.
+  SPDX section 6.9 defines `created` as UTC, so spdx-tools parses it into a
+  naive datetime and drops the `Z`; formatting that value produced a string
+  with no offset, which `rfc3339_utc` was then right to reject. A CycloneDX
+  document carrying the identical timestamp passed, so the verdict described
+  the format rather than the document. Affected the timestamp rule in
+  `ntia-min-elements`, `cisa-2026-min`, `cert-in-v2.0`, `bsi-tr-03183-v2.1`,
+  `openchain-telco-v1.1` and `aibom-v0.1`, and the scorer's freshness signal
+  on every profile. SPDX 2.x scores rise 4 to 8 points across the fixtures;
+  SPDX 3.0 was never affected, since its parser keeps the raw string.
 - The profiles guide described `fedramp-sbom` as "FedRAMP SBOM requirements".
   The profile was renamed away from that wording precisely because FedRAMP
   publishes no SBOM requirements, so the catalog table was still asserting the
@@ -379,7 +391,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/SemClone/ossbomer/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/SemClone/ossbomer/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/SemClone/ossbomer/releases/tag/v2.0.0
