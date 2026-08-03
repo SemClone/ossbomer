@@ -54,7 +54,8 @@ def test_rfc3339_requires_utc():
     ("2026-01-01 00:00:00+00:00", "space for T, the section 5.6 note"),
     ("2016-12-31T23:59:60Z", "leap second, section 5.7"),
     ("2016-12-31T18:59:60-05:00", "the same leap second seen from -05:00"),
-    ("2017-01-01T05:29:60+05:30", "the same leap second seen from +05:30"),
+    ("2017-01-01T05:29:60+05:30", "same leap second, offset moves the date"),
+    ("2026-06-30T23:59:60Z", "a leap second may end any month, not only December"),
 ])
 def test_rfc3339_accepts(value, reason):
     assert V.get("rfc3339_utc")(value, _ctx(_sbom([])), {})[0] is True, reason
@@ -70,7 +71,9 @@ def test_rfc3339_accepts(value, reason):
     ("2026-01-01T00:00:61Z", "no such second, 60 being the leap second"),
     ("2026-01-01T00:00:60Z", "60 is not a free 61st second of any minute"),
     ("2026-01-01T12:30:60Z", "a leap second does not fall mid-day"),
+    ("2026-01-01T23:59:60Z", "the last minute of a day that does not end a month"),
     ("2016-12-31T23:59:60+01:00", "that offset puts the leap second at 22:59 UTC"),
+    ("٢٠٢٦-٠١-٠١T٠٠:٠٠:٠٠Z", "ABNF DIGIT is ASCII"),
     ("2026-01-01T00:00:00+99:00", "no such offset"),
     ("not-a-timestamp", "not a timestamp at all"),
 ])

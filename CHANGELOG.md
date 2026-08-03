@@ -23,8 +23,12 @@ follow [Semantic Versioning](https://semver.org/).
   `2026-02-30T00:00:00Z` now fail rather than being reported against whatever
   the interpreter happened to accept. Leap seconds (section 5.7) are accepted,
   but only where one can occur: `time-second` allows 60 under the leap second
-  rules, not as a free 61st second of any minute, so the instant has to be the
-  last one of a UTC day once the offset is taken off.
+  rules, not as a free 61st second of any minute, so once the offset is taken
+  off the instant has to be 23:59:60 on the last day of a UTC month.
+
+  Digit fields are ASCII, as the ABNF `DIGIT` is. Python's `\d` also matches
+  the decimal digits of other scripts, and `int()` is equally willing to
+  convert them, so `٢٠٢٦-٠١-٠١T٠٠:٠٠:٠٠Z` had been a valid timestamp.
 
   Verdicts no longer depend on the interpreter either: before 3.11,
   `fromisoformat` rejected fractional seconds of any length but 3 or 6 digits,
