@@ -172,9 +172,16 @@ def _rfc3339_utc(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool,
         if second == 60:
             days, minute_of_day = divmod(hour * 60 + minute - offset,
                                          _MINUTES_PER_DAY)
-            utc_day = date(year, month, day) + timedelta(days=days)
-            if (minute_of_day != _LEAP_SECOND_MINUTE
-                    or (utc_day + timedelta(days=1)).day != 1):
+            try:
+                utc_day = date(year, month, day) + timedelta(days=days)
+                ends_a_month = (utc_day + timedelta(days=1)).day == 1
+            except OverflowError:
+                # 0001-01-01 and 9999-12-31 have no neighbouring day to step to.
+                # A validator answers, it does not raise: the scorer calls this
+                # one directly, outside the engine's guard, so an SBOM dated at
+                # the edge of the range would take the whole run down with it.
+                ends_a_month = False
+            if minute_of_day != _LEAP_SECOND_MINUTE or not ends_a_month:
                 return False, (f"{v!r} puts a leap second somewhere other than "
                                "the last minute of a UTC month")
     return True, ""

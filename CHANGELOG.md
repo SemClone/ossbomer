@@ -35,6 +35,11 @@ follow [Semantic Versioning](https://semver.org/).
   so `2026-01-01T00:00:00.5Z` passed on some supported Pythons and failed on
   others.
 
+  A leap second on the first or last representable date has no neighbouring
+  day to step to when asking whether it ends a month, and the scorer calls
+  this validator directly, outside the engine's guard. `9999-12-31T23:59:60Z`
+  therefore ends one rule rather than the run.
+
   No document in the test corpus changes verdict, including the real-world
   SBOMs under `tests/conformance/`: every generator in it emits conformant
   timestamps.
