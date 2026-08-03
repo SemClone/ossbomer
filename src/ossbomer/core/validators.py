@@ -116,8 +116,13 @@ def _format_regex(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool
 # accepted here, and both are unreachable from a real SBOM anyway, since SPDX
 # mandates `YYYY-MM-DDThh:mm:ssZ` and CycloneDX an XSD `dateTime`.
 _RFC3339_LOCAL = r"(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?"
-_RFC3339 = re.compile(_RFC3339_LOCAL + r"(?:[Zz]|[+-](\d{2}):(\d{2}))$")
+_RFC3339 = re.compile(_RFC3339_LOCAL + r"(?:[Zz]|([+-])(\d{2}):(\d{2}))$")
 _RFC3339_NO_OFFSET = re.compile(_RFC3339_LOCAL + r"$")
+
+_MINUTES_PER_DAY = 24 * 60
+# A leap second is inserted as 23:59:60 UTC (section 5.7), which is the last
+# minute of a UTC day however the offset spells it.
+_LEAP_SECOND_MINUTE = 23 * 60 + 59
 
 
 @register("rfc3339_utc")
@@ -143,11 +148,23 @@ def _rfc3339_utc(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool,
         except ValueError:
             return False, f"{v!r} is not a real date"
 
-        offset_hours, offset_minutes = m.group(7), m.group(8)
-        if offset_hours is not None and (
-            int(offset_hours) > 23 or int(offset_minutes) > 59
+        sign, offset_hours, offset_minutes = m.group(7), m.group(8), m.group(9)
+        offset = 0
+        if offset_hours is not None:
+            if int(offset_hours) > 23 or int(offset_minutes) > 59:
+                return False, f"{v!r} has an out-of-range UTC offset"
+            offset = (int(offset_hours) * 60 + int(offset_minutes))
+            offset = -offset if sign == "-" else offset
+
+        # `time-second` allows 60 only under the leap second rules, so it is not
+        # a free 61st second of any minute: the instant has to be the last one
+        # of a UTC day once the offset is taken off. Whether a leap second was
+        # actually inserted on that date needs the IERS table, which is not
+        # worth carrying, so a well-placed one is taken at its word.
+        if second == 60 and (
+            (hour * 60 + minute - offset) % _MINUTES_PER_DAY != _LEAP_SECOND_MINUTE
         ):
-            return False, f"{v!r} has an out-of-range UTC offset"
+            return False, f"{v!r} puts a leap second somewhere other than 23:59:60 UTC"
     return True, ""
 
 

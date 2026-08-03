@@ -21,7 +21,10 @@ follow [Semantic Versioning](https://semver.org/).
   The same check was also too strict, rejecting the lower case `t` and `z`
   forms that section 5.6 explicitly permits, and impossible instants such as
   `2026-02-30T00:00:00Z` now fail rather than being reported against whatever
-  the interpreter happened to accept. Leap seconds (section 5.7) are accepted.
+  the interpreter happened to accept. Leap seconds (section 5.7) are accepted,
+  but only where one can occur: `time-second` allows 60 under the leap second
+  rules, not as a free 61st second of any minute, so the instant has to be the
+  last one of a UTC day once the offset is taken off.
 
   Verdicts no longer depend on the interpreter either: before 3.11,
   `fromisoformat` rejected fractional seconds of any length but 3 or 6 digits,
