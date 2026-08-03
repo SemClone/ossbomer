@@ -13,7 +13,7 @@ through the ``ossbomer.validators`` entry-point group (the plugin escape hatch).
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, timedelta
 from functools import lru_cache
 from typing import Any, Callable
 
@@ -102,17 +102,88 @@ def _format_regex(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool
     return True, ""
 
 
+# RFC 3339 section 5.6 `date-time`, spelled out rather than delegated to
+# `datetime.fromisoformat`. That function implements ISO 8601, which is a
+# superset: it accepted a bare date, a time without seconds and an offset
+# carrying seconds, none of which are RFC 3339, so the check passed values its
+# own message called invalid. It is also version-dependent -- before 3.11 it
+# rejected fractional seconds of any length but 3 or 6 digits -- which made the
+# verdict depend on the interpreter rather than the document.
+#
+# `partial-time` requires seconds and `time-numoffset` is exactly +-HH:MM, so
+# neither may be omitted or extended. Section 5.6 permits lower case `t` and
+# `z`, and its note permits a space in place of `T` for readability; both are
+# accepted here, and both are unreachable from a real SBOM anyway, since SPDX
+# mandates `YYYY-MM-DDThh:mm:ssZ` and CycloneDX an XSD `dateTime`.
+# `[0-9]` rather than `\d`, which in Python also matches the decimal digits of
+# other scripts: `\d` made `٢٠٢٦-٠١-٠١T٠٠:٠٠:٠٠Z` a valid timestamp, `int()`
+# being just as willing to convert it. The ABNF `DIGIT` is ASCII.
+_RFC3339_LOCAL = (
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]"
+    r"([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?"
+)
+_RFC3339 = re.compile(_RFC3339_LOCAL + r"(?:[Zz]|([+-])([0-9]{2}):([0-9]{2}))$")
+_RFC3339_NO_OFFSET = re.compile(_RFC3339_LOCAL + r"$")
+
+_MINUTES_PER_DAY = 24 * 60
+# A leap second is inserted as 23:59:60 UTC, which is the last minute of a UTC
+# day however the offset spells it.
+_LEAP_SECOND_MINUTE = 23 * 60 + 59
+
+
 @register("rfc3339_utc")
 def _rfc3339_utc(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     for v in _as_list(value):
         s = str(v).strip()
-        try:
-            # Accept trailing Z (UTC) or explicit offset.
-            datetime.fromisoformat(s.replace("Z", "+00:00"))
-        except ValueError:
+        m = _RFC3339.match(s)
+        if not m:
+            # A well-formed instant that simply carries no offset is the common
+            # mistake and gets its own message; anything else is malformed.
+            if _RFC3339_NO_OFFSET.match(s):
+                return False, f"{v!r} lacks a UTC/timezone designator"
             return False, f"{v!r} is not an RFC 3339 timestamp"
-        if not (s.endswith("Z") or "+00:00" in s or re.search(r"[+-]\d\d:\d\d$", s)):
-            return False, f"{v!r} lacks a UTC/timezone designator"
+
+        year, month, day, hour, minute, second = (int(g) for g in m.groups()[:6])
+        # Checked as a date and a wall time rather than by building a datetime,
+        # since second 60 is a leap second (section 5.7) and legal here, but no
+        # date library will accept one.
+        if hour > 23 or minute > 59 or second > 60:
+            return False, f"{v!r} is not a real time"
+        try:
+            date(year, month, day)
+        except ValueError:
+            return False, f"{v!r} is not a real date"
+
+        sign, offset_hours, offset_minutes = m.group(7), m.group(8), m.group(9)
+        offset = 0
+        if offset_hours is not None:
+            if int(offset_hours) > 23 or int(offset_minutes) > 59:
+                return False, f"{v!r} has an out-of-range UTC offset"
+            offset = (int(offset_hours) * 60 + int(offset_minutes))
+            offset = -offset if sign == "-" else offset
+
+        # `time-second` allows 60 only under the leap second rules, so it is not
+        # a free 61st second of any minute. Section 5.7 puts one at the end of a
+        # month, so once the offset is taken off the instant has to be 23:59 UTC
+        # on a UTC month's last day. Taking the offset off can move the date, so
+        # the day carries: 2017-01-01T05:29:60+05:30 is 2016-12-31T23:59:60Z.
+        # Which months actually got one needs the IERS table, which is not worth
+        # carrying, so a well-placed leap second is taken at its word.
+        if second == 60:
+            days, minute_of_day = divmod(hour * 60 + minute - offset,
+                                         _MINUTES_PER_DAY)
+            try:
+                utc_day = date(year, month, day) + timedelta(days=days)
+                ends_a_month = (utc_day + timedelta(days=1)).day == 1
+            except OverflowError:
+                # 0001-01-01 and 9999-12-31 have no neighbouring day to step to.
+                # A validator answers, it does not raise: the scorer calls this
+                # one directly, outside the engine's guard, so an SBOM dated at
+                # the edge of the range would take the whole run down with it.
+                ends_a_month = False
+            if minute_of_day != _LEAP_SECOND_MINUTE or not ends_a_month:
+                return False, (f"{v!r} puts a leap second somewhere other than "
+                               "the last minute of a UTC month")
     return True, ""
 
 

@@ -141,6 +141,34 @@ def test_a_document_full_of_junk_still_produces_a_verdict(tmp_path):
         assert result.findings
 
 
+@pytest.mark.parametrize("timestamp", [
+    "9999-12-31T23:59:60Z",
+    "0001-01-01T00:29:60+00:30",
+])
+def test_a_leap_second_at_the_edge_of_the_calendar_still_reports(tmp_path, timestamp):
+    """`rfc3339_utc` steps to the following day to ask whether a leap second
+    ends its month, and the first and last representable dates have no
+    neighbour to step to. The scorer calls the validator directly, outside the
+    engine's guard, so an OverflowError there ended the whole run instead of
+    failing one rule.
+    """
+    doc = {
+        "bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+        "metadata": {"timestamp": timestamp,
+                     "component": {"type": "application", "bom-ref": "root",
+                                   "name": "app", "version": "1.0.0"}},
+        "components": [{"type": "library", "bom-ref": "a", "name": "liba",
+                        "version": "1.0.0"}],
+        "dependencies": [{"ref": "root", "dependsOn": ["a"]}],
+    }
+    path = tmp_path / "edge.json"
+    path.write_text(json.dumps(doc), encoding="utf-8")
+
+    (result,) = run(str(path), ["ntia-min-elements"])
+    assert result.verdict in {Verdict.PASS, Verdict.WARN, Verdict.FAIL}
+    assert 0 <= result.score <= 100
+
+
 def test_an_unknown_validator_name_is_not_treated_as_bad_data():
     """The guard covers the invocation, not the lookup. A profile naming a
     validator that does not exist is a typo in the profile, and reporting it as

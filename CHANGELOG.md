@@ -6,6 +6,44 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-08-02
+
+### Fixed
+- `rfc3339_utc` did not implement RFC 3339. It delegated its grammar to
+  `datetime.fromisoformat`, which implements ISO 8601, a superset, and then
+  looked for a timezone designator by substring. It therefore returned PASS for
+  values its own message called invalid: a bare date with an offset
+  (`2026-01-01+00:00`), a time without seconds (`2026-01-01T00:00+00:00`), and
+  an offset carrying seconds (`2026-01-01T00:00:00+00:00:00`). A false PASS is
+  the wrong direction for a conformance tool, since it reports a malformed
+  document as meeting a requirement it does not meet.
+
+  The same check was also too strict, rejecting the lower case `t` and `z`
+  forms that section 5.6 explicitly permits, and impossible instants such as
+  `2026-02-30T00:00:00Z` now fail rather than being reported against whatever
+  the interpreter happened to accept. Leap seconds (section 5.7) are accepted,
+  but only where one can occur: `time-second` allows 60 under the leap second
+  rules, not as a free 61st second of any minute, so once the offset is taken
+  off the instant has to be 23:59:60 on the last day of a UTC month.
+
+  Digit fields are ASCII, as the ABNF `DIGIT` is. Python's `\d` also matches
+  the decimal digits of other scripts, and `int()` is equally willing to
+  convert them, so `٢٠٢٦-٠١-٠١T٠٠:٠٠:٠٠Z` had been a valid timestamp.
+
+  Verdicts no longer depend on the interpreter either: before 3.11,
+  `fromisoformat` rejected fractional seconds of any length but 3 or 6 digits,
+  so `2026-01-01T00:00:00.5Z` passed on some supported Pythons and failed on
+  others.
+
+  A leap second on the first or last representable date has no neighbouring
+  day to step to when asking whether it ends a month, and the scorer calls
+  this validator directly, outside the engine's guard. `9999-12-31T23:59:60Z`
+  therefore ends one rule rather than the run.
+
+  No document in the test corpus changes verdict, including the real-world
+  SBOMs under `tests/conformance/`: every generator in it emits conformant
+  timestamps.
+
 ## [2.2.1] - 2026-08-02
 
 ### Fixed
@@ -391,7 +429,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.2...HEAD
+[2.2.2]: https://github.com/SemClone/ossbomer/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/SemClone/ossbomer/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/SemClone/ossbomer/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/SemClone/ossbomer/compare/v2.0.0...v2.1.0
