@@ -14,7 +14,7 @@ Install ossbomer, validate a file, and read the result.
 
 ## What you need
 
-Python 3.9 or newer. It is tested on 3.9 through 3.13.
+Python 3.10 or newer. It is tested on 3.10 through 3.13.
 
 ## Install
 

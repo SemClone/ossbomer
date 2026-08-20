@@ -7,14 +7,13 @@ name = "ossbomer"
 version = "2.3.1"
 description = "Profile-driven SBOM validation, conformance, and license policy (SPDX / CycloneDX)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Oscar Valenzuela", email = "oscar.valenzuela.b@gmail.com" }]
 keywords = ["sbom", "spdx", "cyclonedx", "compliance", "cra", "ntia", "fedramp", "aibom", "license"]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -36,10 +35,17 @@ dependencies = [
 [project.optional-dependencies]
 # License policy evaluation is delegated to ospac (Open Source Policy as Code).
 # Required by any profile whose license_policy declares `engine: ospac`.
-oslc = ["ospac>=1.2"]
+#
+# Floored at 1.4.3, the first release carrying the full license record set.
+# Below it ospac ships roughly half the mappings, so the same SBOM resolved
+# differently depending on which interpreter had resolved the dependency --
+# 712 mappings on Python 3.9 against 1471 on 3.10+, silently. The floor is
+# reachable now that the interpreter floor is 3.10; on 3.9 it was not, which is
+# what made the divergence possible.
+oslc = ["ospac>=1.4.3"]
 # ospac is in dev too, so CI exercises the real policy engine rather than
 # skipping the license layer's tests.
-dev = ["pytest", "ruff", "mypy", "types-PyYAML", "lxml-stubs", "ospac>=1.2"]
+dev = ["pytest", "ruff", "mypy", "types-PyYAML", "lxml-stubs", "ospac>=1.4.3"]
 
 [project.scripts]
 ossbomer = "ossbomer.cli:main"
@@ -69,10 +75,9 @@ where = ["src"]
 testpaths = ["tests"]
 
 [tool.mypy]
-# No python_version pin: current mypy refuses to target anything below 3.10,
-# while this project still supports 3.9. Type checking therefore runs against
-# the interpreter it is invoked with. Runtime 3.9 compatibility is covered by
-# the test matrix, not by mypy.
+# No python_version pin: type checking runs against the interpreter it is
+# invoked with, and the floor is now 3.10, which mypy can target. Pin it here if
+# a version-specific check ever earns its keep.
 files = ["src"]
 
 # Neither ships stubs nor a py.typed marker, and no stub packages exist. Scoped

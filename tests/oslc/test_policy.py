@@ -13,12 +13,15 @@ from ossbomer.oslc.policy import LicensePolicy, OspacUnavailable
 
 ospac = pytest.importorskip("ospac", reason="ospac is the optional [oslc] extra")
 
-# Which ospac is installed decides some answers below, and the interpreter
-# decides which ospac you can install: from 1.4.3 it requires Python >= 3.10, so
-# a 3.9 environment resolves to 1.2.3 at the latest. The same license and use
-# case can therefore get different verdicts on 3.9 and on 3.10+, which is worth
-# knowing about rather than papering over -- ossbomer still declares
-# `requires-python = ">=3.9"`.
+# Which ospac is installed decides some answers below, so the gates are on its
+# version rather than assumed.
+#
+# This used to be an interpreter question too: ospac requires Python >= 3.10
+# from 1.4.3, so while ossbomer supported 3.9 a 3.9 environment resolved to
+# 1.2.3 and got roughly half the license data -- the same license and use case
+# answered differently depending on which interpreter installed it. The floor is
+# 3.10 now and the extra requires ospac >= 1.4.3, so that gap is closed by
+# resolution rather than reported at runtime.
 OSPAC_VERSION_STR = metadata_version("ospac")
 OSPAC_VERSION = tuple(
     int(part) for part in OSPAC_VERSION_STR.split(".")[:2] if part.isdigit()

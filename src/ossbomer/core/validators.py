@@ -13,9 +13,10 @@ through the ``ossbomer.validators`` entry-point group (the plugin escape hatch).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import date, timedelta
 from functools import lru_cache
-from typing import Any, Callable
+from typing import Any
 
 from .ir import Sbom, is_null_value
 from .licenses import AMBIGUOUS_NAMES, descriptive_key

@@ -21,7 +21,7 @@ Full documentation: **https://semclone.github.io/ossbomer/**
 
 ## Install
 
-Requires Python 3.9 or newer; tested through 3.13.
+Requires Python 3.10 or newer; tested through 3.13.
 
 ```bash
 pip install "ossbomer[oslc]"

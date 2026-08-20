@@ -108,7 +108,7 @@ pull request with green CI.
 5. Make sure `pytest -q`, `ruff check .` and `mypy` all pass locally. All three
    are enforced in CI.
 6. Open the PR and confirm all status checks pass — the suite runs on Python
-   3.9 through 3.13, plus a job that builds the wheel, installs it into a clean
+   3.10 through 3.13, plus a job that builds the wheel, installs it into a clean
    environment, and smoke-tests the CLI.
 7. Sign the CLA when the bot asks.
 
@@ -131,12 +131,12 @@ PR that introduces a finding will not merge.
 
 Two things worth knowing before you reach for a rewrite:
 
-* The project supports **Python 3.9**, so `X | None` annotations are only safe
-  in modules that carry `from __future__ import annotations`. Every module using
-  that syntax has it; keep it that way when adding files.
-* `mypy` cannot be pinned to 3.9 (current versions refuse to target below 3.10),
-  so it runs against the invoking interpreter. Runtime 3.9 compatibility is
-  covered by the test matrix instead.
+* The floor is **Python 3.10**. `X | None` annotations are fine at runtime
+  there, though modules keep `from __future__ import annotations` where they
+  already have it; there is no reason to strip it.
+* `mypy` runs against the invoking interpreter rather than a pinned target. Pin
+  `python_version` if a version-specific check ever earns its keep — it is
+  reachable now that the floor is 3.10.
 
 Where a broad `except Exception` is deliberate — CLI boundaries, the plugin
 loader, predicates that must never raise — it carries a `noqa` with the reason.
