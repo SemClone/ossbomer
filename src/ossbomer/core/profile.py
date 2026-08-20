@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from dataclasses import field as dc_field
 from typing import Any, ClassVar
 
 import yaml
@@ -33,6 +34,23 @@ class Rule:
     category: Category | None
     validators: list[Any]  # list[str | dict]
     field: str | None = None  # IR attribute name (document/component scope)
+    # Alternative IR attributes for a requirement a document may satisfy in more
+    # than one way, tried in order, first one carrying a value wins. BSI
+    # TR-03183-2 §5.2.4 ("CPE or purl") is the case that forced this: with a
+    # single `field` the rule could only check one of the two identifiers the
+    # clause accepts, so a component identified solely by CPE failed a
+    # requirement it met. Empty means the single `field` above is the whole
+    # lookup.
+    # `dc_field`, not `field`: the attribute above shadows the dataclasses helper
+    # for the rest of this class body, so the plain name is no longer callable
+    # here. Renaming the attribute is not an option -- profiles name it in YAML.
+    fields: list[str] = dc_field(default_factory=list)
+
+    def lookup_fields(self) -> list[str]:
+        """Every IR attribute this rule may read, in precedence order."""
+        if self.fields:
+            return list(self.fields)
+        return [self.field] if self.field else []
     citation: str | None = None
     layer: str = "conformance"
 
@@ -175,6 +193,7 @@ def _parse_rule(raw: dict[str, Any]) -> Rule:
         category=category,
         validators=raw.get("validators", []),
         field=raw.get("field"),
+        fields=list(raw.get("fields", []) or []),
         citation=raw.get("citation"),
         layer=raw.get("layer", "conformance"),
     )

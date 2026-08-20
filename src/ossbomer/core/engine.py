@@ -20,6 +20,41 @@ from .model import Category, Finding, Severity, Verdict
 from .profile import Profile, ProfileError, Rule
 
 
+def _has_value(value: Any) -> bool:
+    """Whether `value` is something a validator could act on.
+
+    Mirrors what `present` counts as data, so a lookup across alternatives and
+    the rule that follows it agree on what "absent" means. An empty container is
+    absence, and so is one holding nothing but SPDX null tokens: without this an
+    empty `licenses` list would satisfy the lookup below and shadow a populated
+    alternative listed after it.
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return not is_null_value(value)
+    if isinstance(value, (list, tuple, set, dict)):
+        return any(not (isinstance(v, str) and is_null_value(v)) for v in value)
+    return True
+
+
+def _extract_any(target: Any, fields: list[str]) -> Any:
+    """First of `fields` that carries a real value, else the last one's value.
+
+    A requirement satisfiable in more than one way needs the value that actually
+    satisfied it, not whichever attribute happens to be listed first. Falling
+    back to the last lookup rather than to None keeps the "absent" case reporting
+    a value in the same shape a single-field rule would, which is what
+    `data_available` and the finding's `value` are read from downstream.
+    """
+    value = None
+    for name in fields:
+        value = _extract(target, name)
+        if _has_value(value):
+            return value
+    return value
+
+
 def _extract(target: Any, field: str | None) -> Any:
     if field is None:
         return None
@@ -94,15 +129,19 @@ def _eval_rule(sbom: Sbom, rule: Rule) -> list[Finding]:
     findings: list[Finding] = []
 
     def evaluate_target(target: Any, path: str) -> None:
-        value = _extract(target, rule.field)
+        value = _extract_any(target, rule.lookup_fields())
         ctx = V.ValidatorContext(sbom, target, path)
         ok, msg = _run_validators(value, ctx, rule.validators)
         if ok:
             findings.append(Finding(rule.id, rule.layer, rule.severity, rule.category,
                                     Verdict.PASS, rule.citation, path, value, "ok"))
             return
-        data_available = value is not None and not (
-            isinstance(value, str) and is_null_value(value))
+        # `_has_value`, not an inline null test: MUST_WHERE_AVAILABLE turns on
+        # this flag, so "available" here has to mean what `present` means. An
+        # inline `value is not None` counted an empty container as data, which
+        # made a rule on `hashes` or `licenses` report FAIL for a component that
+        # simply never declared one -- the case the severity exists to excuse.
+        data_available = _has_value(value)
         findings.append(Finding(
             rule.id, rule.layer, rule.severity, rule.category,
             _verdict_for(rule.severity, data_available), rule.citation, path, value, msg))

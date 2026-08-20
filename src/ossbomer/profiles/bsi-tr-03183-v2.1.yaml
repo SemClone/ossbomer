@@ -74,11 +74,17 @@ rules:
     # 5.2.4 "Other unique identifiers" (CPE or purl) is an additional field,
     # required only "if it exists and fulfils the requirements of an SBOM format
     # specification". That conditional is MUST_WHERE_AVAILABLE, not MUST.
+    #
+    # The clause accepts either identifier, so the rule reads both. It previously
+    # matched on `field: purl` alone, which failed a component identified solely
+    # by a CPE -- a requirement it met -- while the citation beside it said "CPE
+    # or purl". A check narrower than the clause it cites is the defect this
+    # catalog exists to avoid, so the two now describe the same requirement.
     severity: MUST_WHERE_AVAILABLE
     category: Completeness
     citation: "BSI TR-03183-2 §5.2.4: Other unique identifiers (CPE or purl), if it exists"
-    field: purl
-    validators: [present, purl_wellformed]
+    fields: [purl, cpe]
+    validators: [present, component_identifier]
 
   - id: bsi-component-license
     scope: component

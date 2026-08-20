@@ -289,6 +289,131 @@ def _purl_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[b
     return True, ""
 
 
+# NIST IR 7695 Appendix A, transcribed. These are the specification's own regular
+# expressions for the two bindings, not a paraphrase of them.
+#
+# Hand-rolled structural checks kept passing malformed names one class at a time:
+# first any `part` value, then empty attributes, then attribute text containing
+# spaces. Each fix closed one hole and left the rest, because a component count
+# and a part check are not the grammar. These are.
+#
+# §6.2.2 (formatted string): `part` is a/h/o or the logical values `*` (ANY) and
+# `-` (NA); each attribute is either a logical value or printable text whose
+# special characters are backslash-escaped; `language` is an RFC 5646 tag.
+CPE23_RE = re.compile(
+    r'cpe:2\.3:[aho*\-]'
+    r'(:(((\?*|\*?)([a-zA-Z0-9\-._]|(\\[\\*?!"#$%&\'()+,/:;<=>@\[\]^`{|}~]))+(\?*|\*?))|[*\-])){5}'
+    r'(:(([a-zA-Z]{2,3}(-([a-zA-Z]{2}|[0-9]{3}))?)|[*\-]))'
+    r'(:(((\?*|\*?)([a-zA-Z0-9\-._]|(\\[\\*?!"#$%&\'()+,/:;<=>@\[\]^`{|}~]))+(\?*|\*?))|[*\-])){4}'
+)
+
+# §6.1 (URI binding): `cpe:/` then up to seven percent-encoded components. The
+# scheme is case-insensitive and `part` may be upper case, which an a/h/o-only
+# check rejected -- `cpe:/A:vendor:prod` is a valid name.
+# One deliberate deviation from the published expression, which reads
+# `c[pP][eE]:/`: it pins the first letter to lower case while allowing either
+# case for the other two, so `CPE:/a:vendor` is rejected and `cPE:/a:vendor` is
+# not. URI schemes are case-insensitive (RFC 3986 §3.1) and the mixed classes
+# read as an incomplete attempt to say so, so the scheme matches either case
+# here. Rejecting a validly-spelled name would be a false FAIL.
+CPE22_RE = re.compile(r'cpe:/[AHOaho]?(:[A-Za-z0-9._\-~%]*){0,6}', re.IGNORECASE)
+
+
+def _split_unescaped(value: str, delimiter: str = ":") -> list[str]:
+    """Split on delimiters that are not escaped, counting backslashes by parity.
+
+    §6.2.2 escapes a special character in an attribute with a backslash, and a
+    literal backslash as a pair. So whether a delimiter is data depends on the
+    *length* of the backslash run before it: odd escapes it, even does not,
+    because those backslashes escape each other. A one-character negative
+    lookbehind gets the even case wrong, and Python's `re` cannot express a
+    variable-length lookbehind.
+
+    Used for diagnostics rather than validation: the grammar above decides
+    well-formedness, and this says how many components the author actually wrote
+    when that count is what went wrong.
+    """
+    parts: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in value:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            current.append(char)
+            escaped = True
+        elif char == delimiter:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return parts
+
+
+@register("cpe_wellformed")
+def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """Both CPE bindings, against the grammar in NIST IR 7695.
+
+    This checks form, not existence: whether the vendor and product name a real
+    product is not something an SBOM validator can answer, and a rule that
+    pretended otherwise would fail correct documents.
+    """
+    for v in _as_list(value):
+        if not v:
+            continue
+        s = str(v).strip()
+        if s.startswith("cpe:2.3:"):
+            if not CPE23_RE.fullmatch(s):
+                # The count is the usual mistake, and "found 12" is a more useful
+                # thing to be told than "does not match the grammar".
+                found = len(_split_unescaped(s))
+                if found != 13:
+                    return False, (f"{v!r} is not a well-formed CPE 2.3 name: expected 13 "
+                                   f"colon-separated components, found {found}")
+                return False, (f"{v!r} is not a well-formed CPE 2.3 name "
+                               f"(NIST IR 7695 §6.2.2)")
+        elif s.lower().startswith("cpe:/"):
+            if not CPE22_RE.fullmatch(s):
+                return False, (f"{v!r} is not a well-formed CPE 2.2 URI "
+                               f"(NIST IR 7695 §6.1)")
+        else:
+            return False, f"{v!r} is not a CPE name (expected a 'cpe:2.3:' or 'cpe:/' prefix)"
+    return True, ""
+
+
+@register("component_identifier")
+def _component_identifier(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """A purl or a CPE, each validated as what it is.
+
+    Used where a clause accepts either identifier. Pairing a rule's `fields:
+    [purl, cpe]` with `purl_wellformed` would reject a CPE for not being a purl,
+    so the form is decided per value by its prefix rather than by which attribute
+    it was read from.
+    """
+    for v in _as_list(value):
+        if not v:
+            continue
+        s = str(v).strip()
+        # Lower-cased for routing only. `_cpe_wellformed` accepts a
+        # case-insensitive scheme for the 2.2 URI, so a case-sensitive test here
+        # sent `CPE:/a:vendor:prod` to the "neither" branch and reported it as
+        # not an identifier at all, while the validator it never reached would
+        # have passed it.
+        lowered = s.lower()
+        if lowered.startswith("cpe:"):
+            ok, msg = _cpe_wellformed(v, ctx, params)
+        elif lowered.startswith("pkg:"):
+            ok, msg = _purl_wellformed(v, ctx, params)
+        else:
+            return False, (f"{v!r} is neither a purl (expected a 'pkg:' prefix) "
+                           f"nor a CPE name (expected 'cpe:')")
+        if not ok:
+            return False, msg
+    return True, ""
+
+
 @register("semver_or_calver")
 def _semver_or_calver(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     for v in _as_list(value):

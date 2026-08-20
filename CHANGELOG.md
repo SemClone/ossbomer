@@ -6,6 +6,62 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Components identified only by a CPE were reported as having no identifier, and
+  on SPDX input a CPE was never read at all. Two defects that hid each other.
+
+  The SPDX parser walked `external_references` looking for `purl` and stopped
+  there, so `Component.cpe` was `None` for every SPDX document in every
+  encoding, while the CycloneDX path populated it. The same component expressed
+  in the two formats produced different IR. SPDX 2.3 §7.11.2 carries CPEs in
+  that same list under the `cpe22Type` and `cpe23Type` reference types; both are
+  now read, and a package may declare a purl and a CPE without either lookup
+  ending the other.
+
+  `bsi-component-identifier` matched on `field: purl` while citing BSI
+  TR-03183-2 §5.2.4, "other unique identifiers (CPE or purl), if it exists". A
+  component carrying a valid CPE and no purl failed a requirement it met, and
+  the rule's own `purl_wellformed` would have rejected the CPE had it reached
+  it. A check narrower than the clause beside it is the defect this catalog
+  exists to avoid.
+
+  Only SPDX documents whose packages declare CPEs change verdict, and only for
+  that rule: a CPE-only component moves from a spurious WARN to PASS. Nothing in
+  the test corpus was affected, since no fixture declared a CPE — which is how
+  this survived.
+
+- `MUST_WHERE_AVAILABLE` failed rules whose field holds a container rather than a
+  string. The severity exists to excuse a document that never declared the data,
+  and availability was decided with an inline null test that counted an empty
+  list or dict as declared. `cisa-component-hash` therefore reported FAIL for a
+  component carrying no hashes at all — the exact case "where available" is
+  there to permit — and `cisa-2025-min`, plus anything extending it, scored it
+  as a violation. Absent now reports WARN; a hash that is present and outside
+  the required set still fails. Predates the identifier work above and was found
+  while reviewing it.
+
+### Added
+- `fields` on a rule, for a requirement a document may satisfy in more than one
+  way. Lists IR attributes in precedence order and hands the validators the
+  first one carrying a real value; null tokens such as `NOASSERTION` are skipped
+  rather than shadowing a usable value behind them. `field` is unchanged and
+  remains the single-attribute form.
+- `cpe_wellformed`, checking CPE names against NIST IR 7695's own regular
+  expressions for the two bindings: the 2.3 formatted string (§6.2.2) and the
+  2.2 URI (§6.1). Transcribed rather than paraphrased, because structural checks
+  written by hand admitted malformed names one class at a time — any `part`
+  value, then empty attributes, then attribute text containing spaces. A
+  component count and a `part` check are not the grammar. One documented
+  deviation: the published 2.2 expression pins the scheme's first letter to
+  lower case while allowing either case for the other two, so `CPE:/a:vendor` is
+  rejected as written; URI schemes are case-insensitive (RFC 3986 §3.1) and this
+  matches the whole scheme either way. It checks form, not existence — whether a
+  vendor and product name something real is not a question an SBOM validator can
+  answer.
+- `component_identifier`, for clauses accepting either identifier. Decides the
+  form per value from its prefix, so a CPE is validated as a CPE and a purl as a
+  purl.
+
 ## [2.2.2] - 2026-08-02
 
 ### Fixed
