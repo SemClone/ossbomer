@@ -289,6 +289,68 @@ def _purl_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[b
     return True, ""
 
 
+@register("cpe_wellformed")
+def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """Both CPE bindings, checked structurally rather than against a dictionary.
+
+    CPE 2.3 (NIST IR 7695 §6.2) is a formatted string of exactly 13
+    colon-separated components: the `cpe` prefix, the version `2.3`, and 11
+    attributes. CPE 2.2 (NIST IR 7695 §6.1) is a URI binding, `cpe:/` followed by
+    up to 7 colon-separated attributes.
+
+    This checks shape, not existence: whether the vendor and product name a real
+    product is not something an SBOM validator can answer, and a rule that
+    pretended otherwise would fail correct documents.
+    """
+    for v in _as_list(value):
+        if not v:
+            continue
+        s = str(v).strip()
+        if s.startswith("cpe:2.3:"):
+            # 13 parts total. Escaped colons (`\:`) are literal data inside an
+            # attribute, not separators, so they must not be counted.
+            parts = re.split(r"(?<!\\):", s)
+            if len(parts) != 13:
+                return False, (f"{v!r} is not a well-formed CPE 2.3 name: "
+                               f"expected 13 colon-separated components, found {len(parts)}")
+        elif s.startswith("cpe:/"):
+            parts = s[len("cpe:/"):].split(":")
+            if len(parts) > 7:
+                return False, (f"{v!r} is not a well-formed CPE 2.2 URI: "
+                               f"expected at most 7 components, found {len(parts)}")
+            if parts and parts[0] not in ("", "a", "h", "o"):
+                return False, (f"{v!r} is not a well-formed CPE 2.2 URI: "
+                               f"part must be one of a/h/o, found {parts[0]!r}")
+        else:
+            return False, f"{v!r} is not a CPE name (expected a 'cpe:2.3:' or 'cpe:/' prefix)"
+    return True, ""
+
+
+@register("component_identifier")
+def _component_identifier(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
+    """A purl or a CPE, each validated as what it is.
+
+    Used where a clause accepts either identifier. Pairing a rule's `fields:
+    [purl, cpe]` with `purl_wellformed` would reject a CPE for not being a purl,
+    so the form is decided per value by its prefix rather than by which attribute
+    it was read from.
+    """
+    for v in _as_list(value):
+        if not v:
+            continue
+        s = str(v).strip()
+        if s.startswith("cpe:"):
+            ok, msg = _cpe_wellformed(v, ctx, params)
+        elif s.startswith("pkg:"):
+            ok, msg = _purl_wellformed(v, ctx, params)
+        else:
+            return False, (f"{v!r} is neither a purl (expected a 'pkg:' prefix) "
+                           f"nor a CPE name (expected 'cpe:')")
+        if not ok:
+            return False, msg
+    return True, ""
+
+
 @register("semver_or_calver")
 def _semver_or_calver(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     for v in _as_list(value):

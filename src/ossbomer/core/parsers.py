@@ -27,6 +27,12 @@ class ParseError(ValueError):
     pass
 
 
+# SPDX 2.3 §7.11.2 defines both, and documents in the wild use both: `cpe22Type`
+# for the CPE 2.2 URI binding, `cpe23Type` for the 2.3 formatted string. A
+# document declaring only the older one still declares an identifier.
+SPDX_CPE_REF_TYPES = ("cpe23Type", "cpe22Type")
+
+
 def parse_file(path: str, detection: Detection | None = None) -> Sbom:
     det = detection or detect_file(path)
     if det.sbom_format == "cyclonedx":
@@ -250,10 +256,21 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
 
     components: list[Component] = []
     for pkg in doc.packages:
+        # SPDX 2.3 §7.11 carries both identifiers in the same list, told apart by
+        # reference type: `purl` under PACKAGE-MANAGER, `cpe22Type`/`cpe23Type`
+        # under SECURITY. Reading only the first meant every SPDX component came
+        # out with `cpe=None`, so the same component parsed from SPDX and from
+        # CycloneDX produced different IR. Both are scanned, and neither loop
+        # stops the other: a package may legitimately declare both.
         purl = None
+        cpe = None
         for ref in getattr(pkg, "external_references", []) or []:
-            if getattr(ref, "reference_type", "") == "purl":
+            ref_type = getattr(ref, "reference_type", "")
+            if purl is None and ref_type == "purl":
                 purl = ref.locator
+            elif cpe is None and ref_type in SPDX_CPE_REF_TYPES:
+                cpe = ref.locator
+            if purl is not None and cpe is not None:
                 break
         declarations = []
         for attr in ("license_concluded", "license_declared"):
@@ -265,6 +282,7 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
             name=pkg.name,
             version=getattr(pkg, "version", None),
             purl=purl,
+            cpe=cpe,
             supplier=str(pkg.supplier) if getattr(pkg, "supplier", None) else None,
             author=str(pkg.originator) if getattr(pkg, "originator", None) else None,
             licenses=[d.effective for d in declarations if d.effective],

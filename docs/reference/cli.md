@@ -115,6 +115,8 @@ The shipped set:
 | `rfc3339_utc` | The timestamp parses as RFC 3339 and carries a timezone. |
 | `semver_or_calver` | The version looks like SemVer or CalVer. |
 | `purl_wellformed` | The value parses as a Package URL. |
+| `cpe_wellformed` | The value is a structurally valid CPE name, in either the 2.3 formatted-string or the 2.2 URI binding. |
+| `component_identifier` | The value is a well-formed purl or CPE, checked as whichever its prefix says it is. For clauses that accept either. |
 | `spdx_license_expression` | The string parses as an SPDX expression. |
 | `license_spdx_normalized` | Every declaration resolves to SPDX. Reads the declarations, so it can say "unresolvable free text" rather than complaining about expression syntax. |
 | `license_in_spdx_field` | No valid SPDX expression is hiding in CycloneDX's free-text `license.name` slot. |

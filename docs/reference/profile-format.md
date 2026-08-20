@@ -104,6 +104,7 @@ Covered in full on [Schema policy]({{ site.baseurl }}/guide/schema-policy).
 | `category` | yes | One of the five scoring categories. |
 | `citation` | yes | The clause this comes from, quoted in the finding. |
 | `field` | usually | The IR field to check. Omitted when the validator works on the whole scope. |
+| `fields` | no | Alternative IR fields for a requirement satisfiable more than one way. Takes precedence over `field`. |
 | `validators` | yes | Validators to run, in order. |
 
 `scope` decides what the rule runs against: once for `document`, once per
@@ -144,6 +145,31 @@ Component scope:
 
 Anything not listed falls back to a dotted lookup into the component's raw source
 mapping, so `field: raw.someVendorExtension` works for data the IR does not model.
+
+### When a clause accepts more than one field
+
+Some requirements are satisfiable in more than one way. BSI TR-03183-2 §5.2.4
+asks for "other unique identifiers (CPE or purl)": either one meets it. Use
+`fields` for these, listed in precedence order:
+
+```yaml
+- id: bsi-component-identifier
+  scope: component
+  severity: MUST_WHERE_AVAILABLE
+  category: Completeness
+  citation: "BSI TR-03183-2 §5.2.4: Other unique identifiers (CPE or purl), if it exists"
+  fields: [purl, cpe]
+  validators: [present, component_identifier]
+```
+
+The first field carrying a real value is what the validators see; `NOASSERTION`
+and friends do not count, so a null purl does not shadow a usable CPE. When none
+of them holds a value the rule reports absence, which for
+`MUST_WHERE_AVAILABLE` is a WARN rather than a violation.
+
+Pick validators that suit every field listed. `purl_wellformed` alongside
+`fields: [purl, cpe]` would reject a CPE for not being a purl, which is why
+`component_identifier` decides the form per value from its prefix.
 
 {: .note }
 Not every field exists in every format. SPDX 2.x has no document-version or

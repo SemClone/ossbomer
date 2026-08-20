@@ -6,6 +6,45 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Components identified only by a CPE were reported as having no identifier, and
+  on SPDX input a CPE was never read at all. Two defects that hid each other.
+
+  The SPDX parser walked `external_references` looking for `purl` and stopped
+  there, so `Component.cpe` was `None` for every SPDX document in every
+  encoding, while the CycloneDX path populated it. The same component expressed
+  in the two formats produced different IR. SPDX 2.3 §7.11.2 carries CPEs in
+  that same list under the `cpe22Type` and `cpe23Type` reference types; both are
+  now read, and a package may declare a purl and a CPE without either lookup
+  ending the other.
+
+  `bsi-component-identifier` matched on `field: purl` while citing BSI
+  TR-03183-2 §5.2.4, "other unique identifiers (CPE or purl), if it exists". A
+  component carrying a valid CPE and no purl failed a requirement it met, and
+  the rule's own `purl_wellformed` would have rejected the CPE had it reached
+  it. A check narrower than the clause beside it is the defect this catalog
+  exists to avoid.
+
+  Only SPDX documents whose packages declare CPEs change verdict, and only for
+  that rule: a CPE-only component moves from a spurious WARN to PASS. Nothing in
+  the test corpus was affected, since no fixture declared a CPE — which is how
+  this survived.
+
+### Added
+- `fields` on a rule, for a requirement a document may satisfy in more than one
+  way. Lists IR attributes in precedence order and hands the validators the
+  first one carrying a real value; null tokens such as `NOASSERTION` are skipped
+  rather than shadowing a usable value behind them. `field` is unchanged and
+  remains the single-attribute form.
+- `cpe_wellformed`, checking CPE names structurally in both bindings: the CPE
+  2.3 formatted string of 13 components (NIST IR 7695 §6.2, with escaped colons
+  treated as data rather than separators) and the CPE 2.2 URI (§6.1). It checks
+  shape, not existence — whether a vendor and product name something real is not
+  a question an SBOM validator can answer.
+- `component_identifier`, for clauses accepting either identifier. Decides the
+  form per value from its prefix, so a CPE is validated as a CPE and a purl as a
+  purl.
+
 ## [2.2.2] - 2026-08-02
 
 ### Fixed

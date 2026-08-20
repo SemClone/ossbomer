@@ -20,6 +20,23 @@ from .model import Category, Finding, Severity, Verdict
 from .profile import Profile, ProfileError, Rule
 
 
+def _extract_any(target: Any, fields: list[str]) -> Any:
+    """First of `fields` that carries a real value, else the last one's value.
+
+    A requirement satisfiable in more than one way needs the value that actually
+    satisfied it, not whichever attribute happens to be listed first. Falling
+    back to the last lookup rather than to None keeps the "absent" case reporting
+    a value in the same shape a single-field rule would, which is what
+    `data_available` and the finding's `value` are read from downstream.
+    """
+    value = None
+    for name in fields:
+        value = _extract(target, name)
+        if value is not None and not (isinstance(value, str) and is_null_value(value)):
+            return value
+    return value
+
+
 def _extract(target: Any, field: str | None) -> Any:
     if field is None:
         return None
@@ -94,7 +111,7 @@ def _eval_rule(sbom: Sbom, rule: Rule) -> list[Finding]:
     findings: list[Finding] = []
 
     def evaluate_target(target: Any, path: str) -> None:
-        value = _extract(target, rule.field)
+        value = _extract_any(target, rule.lookup_fields())
         ctx = V.ValidatorContext(sbom, target, path)
         ok, msg = _run_validators(value, ctx, rule.validators)
         if ok:
