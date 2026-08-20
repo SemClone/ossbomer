@@ -231,11 +231,45 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     def _is_file(entry: dict[str, Any]) -> bool:
         return str(entry.get("type") or "").lower() == "file"
 
+    def _walk(entries: Any) -> list[dict[str, Any]]:
+        """Every component in the tree, parents before children.
+
+        CycloneDX nests: a file belonging to a library is written inside that
+        library's own `components`, which the spec's examples use freely. Reading
+        only the top level meant a document declaring nested files with checksums
+        reported "no file inventory" -- an under-report, but on input no
+        generator would consider unusual.
+
+        Only the file walk recurses. `components` stays top-level, as it has
+        always been: making it recurse would hand every existing component rule
+        a set of entries it has never judged, which is a verdict change with no
+        bearing on the file inventory.
+        """
+        found: list[dict[str, Any]] = []
+        for entry in entries or []:
+            if not isinstance(entry, dict):
+                continue
+            found.append(entry)
+            found.extend(_walk(entry.get("components")))
+        return found
+
     root = (data.get("metadata") or {}).get("component") or {}
-    candidates = list(data.get("components", []) or [])
+    candidates = _walk(data.get("components"))
     if isinstance(root, dict) and _is_file(root):
         candidates.insert(0, root)
-    files = [_cdx_file(c) for c in candidates if isinstance(c, dict) and _is_file(c)]
+
+    # A generator may name the described subject in `components` as well, and
+    # counting it twice would report the same file's checksum twice. Identity
+    # first, since `bom-ref` is the only thing guaranteed unique when present.
+    files, seen = [], set()
+    for entry in candidates:
+        if not _is_file(entry):
+            continue
+        key = entry.get("bom-ref") or (entry.get("name"), entry.get("version"))
+        if key in seen:
+            continue
+        seen.add(key)
+        files.append(_cdx_file(entry))
 
     deps: dict[str, list[str]] = {}
     for d in data.get("dependencies", []) or []:

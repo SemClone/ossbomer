@@ -187,6 +187,57 @@ def test_a_file_component_with_no_hashes_is_kept_and_left_empty(tmp_path):
     assert entry.hashes == {}
 
 
+def test_nested_file_components_reach_the_inventory(tmp_path):
+    """CycloneDX nests: a file belonging to a library is written inside that
+    library's own `components`, which the spec's examples use freely.
+
+    Reading only the top level meant a document declaring nested files *with*
+    checksums reported "no file inventory in SBOM" -- an under-report on input
+    no generator would consider unusual. This is the one defect on valid input
+    that the malformed-input rounds never surfaced, because they were looking at
+    a different class of problem.
+    """
+    sbom = _cdx(tmp_path, {
+        "type": "library", "name": "lib", "version": "1.0",
+        "components": [
+            {"type": "file", "name": "lib/a.c",
+             "hashes": [{"alg": "SHA-256", "content": SHA256}]},
+            {"type": "library", "name": "inner", "components": [
+                {"type": "file", "name": "deep/b.c"},
+            ]},
+        ],
+    })
+    assert [f.name for f in sbom.files] == ["lib/a.c", "deep/b.c"]
+
+
+def test_nesting_does_not_change_the_component_list(tmp_path):
+    """`components` stays top-level, as it has always been. Making it recurse
+    would hand every existing component rule entries it has never judged -- a
+    verdict change with no bearing on the file inventory."""
+    sbom = _cdx(tmp_path, {
+        "type": "library", "name": "lib",
+        "components": [{"type": "file", "name": "lib/a.c"}],
+    })
+    assert [c.name for c in sbom.components] == ["lib"]
+
+
+def test_the_described_subject_is_not_counted_twice(tmp_path):
+    """A generator may name the root in `components` as well, and counting it
+    twice would report the same file's checksum twice."""
+    root = {"type": "file", "name": "app.bin", "bom-ref": "r1",
+            "hashes": [{"alg": "SHA-256", "content": SHA256}]}
+    sbom = _cdx_with_root(tmp_path, root, root)
+    assert [f.name for f in sbom.files] == ["app.bin"]
+
+
+def test_a_distinct_file_alongside_the_root_is_still_counted(tmp_path):
+    """Dedup must not swallow a different file."""
+    sbom = _cdx_with_root(tmp_path,
+                          {"type": "file", "name": "app.bin", "bom-ref": "r1"},
+                          {"type": "file", "name": "other.c", "bom-ref": "r2"})
+    assert [f.name for f in sbom.files] == ["app.bin", "other.c"]
+
+
 @pytest.mark.parametrize("bad_hash", [
     {"alg": None, "content": "x"},      # `alg` is required and a string
     {"alg": {"x": 1}, "content": "y"},
