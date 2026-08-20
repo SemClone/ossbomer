@@ -118,9 +118,14 @@ follow [Semantic Versioning](https://semver.org/).
   `version: 1.0` written as a float is a real generator mistake and the value is
   still the version.
 
-  The test is generative rather than a list: 300 documents, every field the
-  mapper reads against ten wrong types, asserting only that parsing returns and
-  a verdict is reached. Enumeration looked finished long before it was — three
+  The SPDX 3.0 reader owed the same contract and got the same pass: `@graph` and
+  `createdBy` both raised when they held something other than a list. It is
+  best-effort about shapes it understands, which is not licence to raise on
+  shapes it does not.
+
+  The test is generative rather than a list: 430 documents across both readers,
+  every field they read against ten wrong types, asserting only that parsing
+  returns and a verdict is reached. Enumeration looked finished long before it was — three
   of these were fixed one at a time as review happened to reach them, and the
   generative test found two more the moment it ran.
 - A CycloneDX hash entry whose `alg` is not a string — `null`, an object, or a
