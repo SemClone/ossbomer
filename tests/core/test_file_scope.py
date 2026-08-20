@@ -339,6 +339,19 @@ def test_a_type_list_is_read_in_full(tmp_path):
     assert [f.verdict for f in result.findings if f.rule_id == "schema-valid"] == [Verdict.PASS]
 
 
+def test_a_single_verified_using_hash_may_arrive_unwrapped(tmp_path):
+    """JSON-LD compaction collapses a one-element array to a bare object unless
+    the context pins `@container: @set`, so one hash arrives either way.
+    Iterating the bare object walked its keys, found no dicts, and left the file
+    looking unchecksummed when it carried one."""
+    sbom = _spdx3(tmp_path, {
+        "type": "software_File", "spdxId": "https://example.com/f",
+        "creationInfo": "_:ci", "name": "src/a.c",
+        "verifiedUsing": {"type": "Hash", "algorithm": "sha256", "hashValue": SHA256},
+    })
+    assert sbom.files[0].hashes == {"sha256": SHA256}
+
+
 @pytest.mark.parametrize("declared,allowed,expected", [
     ("sha3_256", "SHA3-256", True),     # SPDX 3.0's spelling
     ("sha3-256", "SHA3-256", True),     # CycloneDX's

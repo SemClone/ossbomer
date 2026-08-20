@@ -408,7 +408,12 @@ def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     documents -- a separate change with its own blast radius.
     """
     hashes: dict[str, str] = {}
-    for entry in node.get("verifiedUsing", []) or []:
+    # JSON-LD compaction collapses a single-element array to a bare object
+    # unless the context pins `@container: @set`, so one hash may arrive either
+    # way. Iterating the bare object would walk its keys and find no dicts,
+    # leaving the file looking unchecksummed when it carried one.
+    raw = node.get("verifiedUsing") or []
+    for entry in (raw if isinstance(raw, list) else [raw]):
         if not isinstance(entry, dict):
             continue
         if "Hash" not in spdx3_types(entry):
