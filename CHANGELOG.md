@@ -6,6 +6,116 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- A file inventory in the IR, and a `file` rule scope to target it. The IR
+  modelled documents and components and nothing else, so an SBOM's file entries
+  and the checksums on them were discarded at parse time: SPDX 2.3 §8.4 makes
+  `FileChecksum` mandatory on a file entry, and no rule could say so because
+  there was nothing to point at.
+
+  `Sbom.files` is populated from SPDX 2.x's `files` section in all four
+  encodings, from SPDX 3.0's `software_File` nodes including their
+  `verifiedUsing` digests, and from CycloneDX components of `type: file`. The
+  CycloneDX ones are mirrored rather than moved: taking them out of `components`
+  would change what every existing component rule sees. Nested components are
+  walked, since CycloneDX writes a file belonging to a library inside that
+  library's own `components`; `components` itself stays top-level, as it has
+  always been, because making it recurse would hand every existing component
+  rule entries it has never judged. A `metadata.component` of `type: file`
+  counts as an entry too — a BOM describing a single file
+  declares one, and reporting "no file inventory" for it would be wrong. It
+  joins the inventory only; the described subject is deliberately not a
+  component here and stays out of that list.
+
+  A `file` rule answers two different questions and only one can be a violation.
+  A document with no inventory reports `WARN` whatever the rule's severity —
+  the section is optional in both formats and a dependency-level SBOM
+  legitimately has none, so deriving that from the severity would make a `MUST`
+  file rule fail every SBOM that does not enumerate files. Within an entry the
+  severity governs as usual, so a `MUST` rule still fails a file whose checksum
+  is missing.
+
+  No bundled profile carries a file rule yet, so the file inventory itself
+  changes no verdict: every bundled profile over every corpus document produces
+  identical findings, scores and verdicts.
+
+  The SPDX 3.0 fixes below are the exception, and they are not additive by
+  design. A document whose nodes spell their type as `@type` previously parsed
+  to nothing and was reported schema-invalid; it now parses, so its schema
+  verdict flips to PASS and its score moves — downward, because rules finally
+  see the components they were always meant to judge. That is the fix working,
+  not a regression, but it is a verdict change and should not be described as
+  anything else.
+
+  This is the parser and engine work; rules follow per profile, where a clause
+  actually calls for one.
+
+### Fixed
+- `present` passed a mapping field that was empty. `_as_list` had no branch for
+  a mapping, so `hashes: {}` fell through to the catch-all, came back as `[{}]`
+  and read as populated — a component or file carrying no hashes at all
+  satisfied a `present` check. A mapping now contributes its values, which is
+  what a rule asking whether a hash is present means. No bundled profile paired
+  `present` with a mapping field, so no shipped rule was affected; the natural
+  spelling of a file checksum rule is the first thing that needed it.
+  `known_unknowns_declared` had been working around this locally since it was
+  written.
+
+  The engine's availability test and `present` now share one implementation
+  (`validators.has_value`). They asked the same question in three places and
+  drifted twice: an inline null check counted an empty container as data, and a
+  key-based mapping check counted `hashes: {"sha256": ""}` as data while
+  `present` called it absent.
+- SPDX 3.0 nodes spelling their type and id as `@type` and `@id` parsed to
+  nothing at all. The reader matched `"type"` and `"spdxId"` only, so such a
+  document produced no components, no files and no creation info and was
+  reported as an SBOM that declared nothing rather than one that could not be
+  read. Both spellings are accepted now — for packages and the document node as
+  well as files — a full IRI is trimmed to its class name, and a `@type` list
+  is read in full rather than by its first entry, which had turned
+  `["…/Core/Element", "…/Software/File"]` into `Element` and skipped the node.
+  The schema gate shares the same normaliser: it built its type set from
+  `"type"` alone, so a document that parsed correctly was still reported
+  "@graph contains no SpdxDocument/CreationInfo element" for a graph that
+  plainly had both. Reading a shape the gate then rejects is not support.
+
+  A 3.0 file's `software_copyrightText` reaches the IR too, since the SPDX 2.x
+  and CycloneDX paths both fill `copyright` and the same file should not answer
+  differently by format. `licenses` stays empty on 3.0: licensing there is a
+  relationship to a separate license element rather than a property, which
+  nothing resolves yet — components are in the same position.
+
+  {: .note }
+  This is not full expanded-JSON-LD support. A document in the fully expanded
+  form — a top-level array, properties keyed by IRI, values boxed in `@value` —
+  is still rejected at detection, before any of this runs. Predates the file
+  inventory; found while adding it.
+- SPDX 3.0 hash algorithm names containing an underscore were truncated.
+  Trimming the `hashAlgorithm_` prefix by splitting on every underscore left
+  `sha3_256` as `256`, a different algorithm entirely. Only the prefix comes off
+  now, and `hash_algorithm_in_set` compares names with the underscore stripped
+  as well as the hyphen — it stripped only the hyphen, so `sha3_256` and
+  `SHA3-256` still compared unequal and a file carrying a valid SHA3-256 digest
+  failed a rule that allows SHA3-256.
+- A CycloneDX component whose `type` is not a string crashed the parser with an
+  `AttributeError` instead of reaching the schema gate, which is what exists to
+  report it. Introduced with the file inventory, which selects components by
+  `type`; a traceback is a worse answer than a schema failure.
+- A CycloneDX hash entry whose `alg` is not a string — `null`, an object, or a
+  non-object entry entirely — crashed the parser the same way. That one predates
+  the file inventory and applied to every component; the inventory made it
+  newly reachable through `metadata.component`, which nothing had inspected
+  before. Both mappers now share one tolerant reader, so a document cannot crash
+  on the copy that was not fixed. A valid digest alongside a malformed one is
+  still kept.
+
+### Changed
+- A rule naming an unknown `scope` is refused when the profile loads, rather
+  than silently producing no findings. Previously a typo made the rule vanish,
+  which reads as a clean pass; `file` and `files` are one keystroke apart. This
+  can turn a private overlay that loaded before into a load error, which is the
+  point — it was never running the rule it appeared to declare.
+
 ## [2.3.0] - 2026-08-20
 
 ### Added

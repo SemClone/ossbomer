@@ -65,12 +65,36 @@ CALVER_RE = re.compile(r"^\d{4}([.\-]\d{1,2}){1,2}([.\-][0-9A-Za-z]+)?$")
 def _as_list(value: Any) -> list:
     if value is None:
         return []
+    if isinstance(value, dict):
+        # A mapping's values are its data. `hashes` is alg -> digest, and a rule
+        # asking whether a hash is present means the digest, not the algorithm
+        # name. Without this branch the fallback below wrapped the mapping
+        # itself, so `{}` came back as `[{}]` and read as populated: `present`
+        # returned True for a component or file carrying no hashes at all.
+        return list(value.values())
     if isinstance(value, (list, tuple, set)):
         return list(value)
     return [value]
 
 
 # ---- core validators ---------------------------------------------------------
+
+def has_value(value: Any) -> bool:
+    """Whether `value` carries something a rule could act on.
+
+    The single answer to "is there data here", used by `present` below and by the
+    engine to decide `MUST_WHERE_AVAILABLE` availability and which of a rule's
+    alternative `fields` to read. Those three asked the same question in three
+    places and drifted twice: an inline null test counted an empty container as
+    data, and a key-based mapping check counted `{"sha256": ""}` as data while
+    `present` called it absent. Sharing the implementation is what stops that
+    happening a third time.
+    """
+    items = _as_list(value)
+    if not items:
+        return False
+    return not all(isinstance(v, str) and is_null_value(v) for v in items)
+
 
 @register("present")
 def _present(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
@@ -423,13 +447,25 @@ def _semver_or_calver(value: Any, ctx: ValidatorContext, params: dict) -> tuple[
     return True, ""
 
 
+def _norm_alg(name: Any) -> str:
+    """An algorithm name reduced to what identifies it.
+
+    The separator is spelled differently by every source: `SHA3-256` in a
+    profile, `sha3-256` in CycloneDX, `sha3_256` from SPDX 3.0's
+    `hashAlgorithm_sha3_256`. Stripping only the hyphen left the underscore
+    form comparing unequal, so a file carrying a valid SHA3-256 digest failed a
+    rule that allows SHA3-256.
+    """
+    return str(name).replace("-", "").replace("_", "").lower()
+
+
 @register("hash_algorithm_in_set")
 def _hash_algorithm_in_set(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
-    allowed = {str(a).replace("-", "").lower() for a in params.get("algs", [])}
+    allowed = {_norm_alg(a) for a in params.get("algs", [])}
     hashes = value if isinstance(value, dict) else getattr(ctx.target, "hashes", {}) or {}
     # str() before replace(): a document is free to put anything in an algorithm
     # position, including null, and a validator must answer rather than raise.
-    present = {str(k).replace("-", "").lower() for k in hashes}
+    present = {_norm_alg(k) for k in hashes}
     if not present:
         return False, "no hashes present"
     if allowed and not (present & allowed):
@@ -579,9 +615,9 @@ def _declared(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, st
     """
     if value is None:
         return False, "silent gap: no value and no explicit NOASSERTION/NONE"
-    # Checked before _as_list: that helper wraps a non-sequence in a one-item
-    # list, so an empty dict (`hashes: {}`) would come back as `[{}]` and read as
-    # populated. Empty containers and empty strings are silence.
+    # Empty containers and empty strings are silence. `_as_list` now unwraps a
+    # mapping to its values so `{}` no longer reads as populated, but it still
+    # wraps a bare `""` into `[""]`, which is truthy -- so this stays.
     if isinstance(value, (dict, list, tuple, set, str)) and not value:
         return False, "silent gap: no value and no explicit NOASSERTION/NONE"
     if not _as_list(value):

@@ -15,7 +15,7 @@ from typing import Any
 
 from ..oslc.policy import LicensePolicy, OspacUnavailable
 from . import validators as V
-from .ir import Sbom, is_null_value
+from .ir import Sbom
 from .model import Category, Finding, Severity, Verdict
 from .profile import Profile, ProfileError, Rule
 
@@ -23,19 +23,11 @@ from .profile import Profile, ProfileError, Rule
 def _has_value(value: Any) -> bool:
     """Whether `value` is something a validator could act on.
 
-    Mirrors what `present` counts as data, so a lookup across alternatives and
-    the rule that follows it agree on what "absent" means. An empty container is
-    absence, and so is one holding nothing but SPDX null tokens: without this an
-    empty `licenses` list would satisfy the lookup below and shadow a populated
-    alternative listed after it.
+    Delegates to the validator layer so this and `present` cannot answer the
+    question differently -- they already have, twice. See
+    :func:`ossbomer.core.validators.has_value`.
     """
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return not is_null_value(value)
-    if isinstance(value, (list, tuple, set, dict)):
-        return any(not (isinstance(v, str) and is_null_value(v)) for v in value)
-    return True
+    return V.has_value(value)
 
 
 def _extract_any(target: Any, fields: list[str]) -> Any:
@@ -155,6 +147,31 @@ def _eval_rule(sbom: Sbom, rule: Rule) -> list[Finding]:
                                     "no components in SBOM"))
         for i, comp in enumerate(sbom.components):
             evaluate_target(comp, f"components[{i}]:{comp.identity}")
+    elif rule.scope == "file":
+        # Two different absences, and only one of them is a defect.
+        #
+        # A document with no file inventory has broken nothing: SPDX 2.3 §8 makes
+        # the section optional and a dependency-level SBOM legitimately has none.
+        # A file entry that exists and carries no checksum has broken §8.4, which
+        # makes FileChecksum mandatory on an entry that is there.
+        #
+        # So the inventory's absence is reported WARN whatever the rule's
+        # severity, exactly as an SBOM with no components is. Deriving it from
+        # the severity instead would make a `MUST` file rule fail every SBOM that
+        # simply does not enumerate files, which is the requirement inverted.
+        # Within an entry the severity governs as usual, so `MUST` still fails a
+        # file whose checksum is missing.
+        #
+        # WARN rather than silence: nothing was checked, and a rule that emitted
+        # no finding at all would be indistinguishable from one that checked and
+        # was satisfied.
+        if not sbom.files:
+            findings.append(Finding(
+                rule.id, rule.layer, rule.severity, rule.category,
+                Verdict.WARN, rule.citation, "files", None,
+                "no file inventory in SBOM"))
+        for i, entry in enumerate(sbom.files):
+            evaluate_target(entry, f"files[{i}]:{entry.identity}")
     elif rule.scope == "dependency":
         # Graph-level checks operate on the whole SBOM via the validator context.
         evaluate_target(sbom, "dependencies")

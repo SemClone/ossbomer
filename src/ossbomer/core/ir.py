@@ -72,6 +72,46 @@ class Component:
 
 
 @dataclass
+class File:
+    """A single file entry in the SBOM's file inventory.
+
+    Separate from :class:`Component` because the two answer different questions.
+    A component is something you took a dependency on; a file is a unit of
+    content inside the thing being described, and the requirements that reach it
+    are about integrity rather than provenance -- SPDX 2.3 §8.4 makes
+    `FileChecksum` mandatory on a file entry while saying nothing about its
+    supplier.
+
+    The inventory is optional in both formats, and its absence is not a defect:
+    a dependency-level SBOM legitimately has none. Rules that read it should say
+    so with `MUST_WHERE_AVAILABLE`.
+    """
+
+    spdx_id: str | None = None
+    name: str | None = None
+    # alg (lowercased) -> hash value, same shape as Component.hashes so one
+    # validator serves both.
+    hashes: dict[str, str] = field(default_factory=dict)
+    licenses: list[str] = field(default_factory=list)
+    copyright: str | None = None
+    # Untouched source mapping, for the dotted `raw.` lookup escape hatch.
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def identity(self) -> str:
+        """Best available human-readable identifier, for issue locations.
+
+        Explicit branches rather than an `or` chain, for the reason given on
+        :attr:`Component.identity`.
+        """
+        if self.name:
+            return self.name
+        if self.spdx_id:
+            return self.spdx_id
+        return "<unknown>"
+
+
+@dataclass
 class Document:
     """Document/BOM-level metadata."""
 
@@ -117,6 +157,14 @@ class Sbom:
     encoding: str
     document: Document = field(default_factory=Document)
     components: list[Component] = field(default_factory=list)
+    # The file inventory, where the document carries one. Optional in both
+    # formats: empty means the document declared none, not that it declared an
+    # empty one, and no bundled profile treats that as a violation.
+    #
+    # CycloneDX expresses files as components of `type: file`, so those appear
+    # here *and* in `components`. Mirrored rather than moved: taking them out of
+    # `components` would change what every existing component rule sees.
+    files: list[File] = field(default_factory=list)
     # dependency graph: component ref -> list of refs it depends on.
     dependencies: dict[str, list[str]] = field(default_factory=dict)
     source_path: str | None = None

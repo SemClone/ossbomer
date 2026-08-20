@@ -29,7 +29,7 @@ class ProfileError(ValueError):
 @dataclass
 class Rule:
     id: str
-    scope: str  # "document" | "component" | "dependency"
+    scope: str  # one of SCOPES
     severity: Severity
     category: Category | None
     validators: list[Any]  # list[str | dict]
@@ -179,6 +179,12 @@ def _parse_license_rule(raw: dict[str, Any]) -> LicenseRule:
     )
 
 
+# A rule naming a scope the engine does not handle silently produces no
+# findings, which reads as a clean pass. `file` and `files` are one keystroke
+# apart, so the typo is cheap to make and expensive to notice.
+SCOPES = ("document", "component", "file", "dependency")
+
+
 def _parse_rule(raw: dict[str, Any]) -> Rule:
     try:
         severity = Severity(raw["severity"])
@@ -186,9 +192,14 @@ def _parse_rule(raw: dict[str, Any]) -> Rule:
         raise ProfileError(f"rule {raw.get('id')!r}: bad/missing severity") from exc
     cat_raw = raw.get("category")
     category = Category(cat_raw) if cat_raw else None
+    scope = raw.get("scope", "document")
+    if scope not in SCOPES:
+        raise ProfileError(
+            f"rule {raw.get('id')!r}: unknown scope {scope!r} "
+            f"(expected one of {', '.join(SCOPES)})")
     return Rule(
         id=raw["id"],
-        scope=raw.get("scope", "document"),
+        scope=scope,
         severity=severity,
         category=category,
         validators=raw.get("validators", []),

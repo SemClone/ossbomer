@@ -11,8 +11,8 @@ import json
 from datetime import timezone
 from typing import Any
 
-from .detect import Detection, detect_file
-from .ir import Component, Document, Sbom
+from .detect import Detection, detect_file, spdx3_id, spdx3_types
+from .ir import Component, Document, File, Sbom
 from .licenses import (
     SOURCE_EXPRESSION,
     SOURCE_ID,
@@ -77,6 +77,49 @@ def _cdx_licenses(entry: dict[str, Any]) -> list[LicenseDeclaration]:
     return out
 
 
+def _cdx_hashes(entry: dict[str, Any]) -> dict[str, str]:
+    """A CycloneDX component's digests, tolerating a document that is malformed.
+
+    `alg` is required and a string per the schema, so a document that puts
+    `null` or an object there is invalid -- but the parser is not what reports
+    that. `validate_schema` is, and it only runs if parsing gets far enough to
+    call it. Raising here turned a reportable bad SBOM into an exit-2 traceback,
+    and the entry that most often carries junk is the one nobody validated by
+    hand.
+
+    Shared with the file mapper: the same comprehension was written twice, and
+    fixing one copy would have left a document crashing on the other.
+    """
+    hashes: dict[str, str] = {}
+    for item in entry.get("hashes", []) or []:
+        if not isinstance(item, dict):
+            continue
+        alg, content = item.get("alg"), item.get("content")
+        # An empty digest is no digest. Kept in step with the SPDX 3.0 reader,
+        # which drops an empty `hashValue`, so the same non-answer does not
+        # produce two different IRs depending on which format expressed it.
+        if isinstance(alg, str) and content is not None and str(content).strip():
+            hashes[alg.lower()] = str(content)
+    return hashes
+
+
+def _cdx_file(entry: dict[str, Any]) -> File:
+    """A CycloneDX `type: file` component, as a file entry.
+
+    `name` carries the path in CycloneDX, where SPDX uses `fileName`; both land
+    on `File.name` so one rule serves both formats.
+    """
+    declarations = _cdx_licenses(entry)
+    return File(
+        spdx_id=entry.get("bom-ref"),
+        name=entry.get("name"),
+        hashes=_cdx_hashes(entry),
+        licenses=[d.effective for d in declarations if d.effective],
+        copyright=entry.get("copyright"),
+        raw=entry,
+    )
+
+
 def _cdx_component(entry: dict[str, Any]) -> Component:
     supplier = entry.get("supplier") or {}
     declarations = _cdx_licenses(entry)
@@ -92,8 +135,7 @@ def _cdx_component(entry: dict[str, Any]) -> Component:
         publisher=entry.get("publisher"),
         licenses=[d.effective for d in declarations if d.effective],
         license_declarations=declarations,
-        hashes={h["alg"].lower(): h["content"] for h in entry.get("hashes", []) or []
-                if "alg" in h and "content" in h},
+        hashes=_cdx_hashes(entry),
         external_refs=entry.get("externalReferences", []) or [],
         properties={p["name"]: p.get("value") for p in entry.get("properties", []) or []
                     if "name" in p},
@@ -174,6 +216,78 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     )
 
     components = [_cdx_component(c) for c in data.get("components", []) or []]
+    # CycloneDX has no separate files section: a file is a component whose
+    # `type` is "file". Mirrored into `files` rather than moved out of
+    # `components`, so file rules can reach them without changing what every
+    # existing component rule sees.
+    # The described subject counts too. A BOM whose `metadata.component` is a
+    # `type: file` declares a file and its checksum, and reporting "no file
+    # inventory" for it would be plainly wrong -- SPDX has no equivalent blind
+    # spot, since whatever its document describes sits in `packages` or `files`
+    # already. It joins `files` only: the root is deliberately not a component
+    # here, and moving it into `components` would change every component rule.
+    #
+    # `str()` before `.lower()`: a schema-invalid document can carry a
+    # non-string `type`, and the parser has to survive long enough for the
+    # schema gate to report that. Crashing here would replace a clear schema
+    # failure with a traceback.
+    def _is_file(entry: dict[str, Any]) -> bool:
+        return str(entry.get("type") or "").lower() == "file"
+
+    def _walk(entries: Any) -> list[dict[str, Any]]:
+        """Every component in the tree, parents before children.
+
+        CycloneDX nests: a file belonging to a library is written inside that
+        library's own `components`, which the spec's examples use freely. Reading
+        only the top level meant a document declaring nested files with checksums
+        reported "no file inventory" -- an under-report, but on input no
+        generator would consider unusual.
+
+        Only the file walk recurses. `components` stays top-level, as it has
+        always been: making it recurse would hand every existing component rule
+        a set of entries it has never judged, which is a verdict change with no
+        bearing on the file inventory.
+        """
+        found: list[dict[str, Any]] = []
+        if not isinstance(entries, list):
+            # `components` is an array per the schema. A document that puts
+            # something else there is invalid, and the schema gate is what says
+            # so -- reached only if parsing survives to call it.
+            return found
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            found.append(entry)
+            found.extend(_walk(entry.get("components")))
+        return found
+
+    root = (data.get("metadata") or {}).get("component") or {}
+    entries = _walk(data.get("components"))
+    if isinstance(root, dict):
+        # The subject may carry subcomponents of its own, and a BOM describing an
+        # application often puts its files there. Missing them reported "no file
+        # inventory" for a document declaring checksummed files.
+        entries += _walk(root.get("components"))
+
+    files = [_cdx_file(e) for e in entries if _is_file(e)]
+
+    # The described subject is the one entry that can legitimately appear twice,
+    # because a generator may also name it in `components`. Nothing else is
+    # deduped: `name` is not unique in CycloneDX and nested files routinely carry
+    # a relative one with no version and no `bom-ref`, so two different LICENSE
+    # files under different parents would have collapsed into one -- silently
+    # dropping a real file and its checksum, which is worse than reporting a
+    # duplicate.
+    #
+    # The copy already in the tree wins. A generator that repeats the subject
+    # tends to give the fuller record there, and taking the root's version threw
+    # away digests the document had declared.
+    if isinstance(root, dict) and _is_file(root):
+        ref = root.get("bom-ref")
+        already = any(e.get("bom-ref") == ref for e in entries if _is_file(e)) if ref \
+            else any(e.get("name") == root.get("name") for e in entries if _is_file(e))
+        if not already:
+            files.insert(0, _cdx_file(root))
 
     deps: dict[str, list[str]] = {}
     for d in data.get("dependencies", []) or []:
@@ -183,7 +297,7 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
 
     return Sbom(
         sbom_format="cyclonedx", spec_version=det.spec_version, encoding="json",
-        document=document, components=components, dependencies=deps,
+        document=document, components=components, files=files, dependencies=deps,
         source_path=path, raw=data,
     )
 
@@ -291,6 +405,25 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
             raw={"spdx_id": pkg.spdx_id},
         ))
 
+    # SPDX 2.3 §8 makes the files section optional, and §8.4 makes FileChecksum
+    # mandatory on any entry that is there. Nothing read it, so a rule about file
+    # integrity had nowhere to point.
+    files: list[File] = []
+    for f in getattr(doc, "files", []) or []:
+        declared = [getattr(f, "license_concluded", None)]
+        declared += list(getattr(f, "license_info_in_file", []) or [])
+        files.append(File(
+            spdx_id=getattr(f, "spdx_id", None),
+            name=getattr(f, "name", None),
+            hashes={c.algorithm.name.lower(): c.value
+                    for c in getattr(f, "checksums", []) or []},
+            licenses=[str(lic) for lic in declared
+                      if lic is not None and str(lic) not in ("None", "")],
+            copyright=(str(f.copyright_text)
+                       if getattr(f, "copyright_text", None) is not None else None),
+            raw={"spdx_id": getattr(f, "spdx_id", None)},
+        ))
+
     deps: dict[str, list[str]] = {}
     for rel in doc.relationships:
         if getattr(rel.relationship_type, "name", "") in ("DEPENDS_ON", "DESCRIBES", "CONTAINS"):
@@ -342,37 +475,105 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
     return Sbom(
         sbom_format="spdx", spec_version=ci.spdx_version.replace("SPDX-", ""),
         encoding=det.encoding, document=document, components=components,
-        dependencies=deps, source_path=path,
+        files=files, dependencies=deps, source_path=path,
     )
 
 
 # ---- SPDX 3.0 (best-effort JSON-LD) ------------------------------------------
+
+def _spdx3_prop(node: dict[str, Any], name: str, profile: str) -> Any:
+    """A 3.0 property, with or without its profile prefix.
+
+    The JSON-LD context qualifies a profile's properties, so the same field is
+    written `software_copyrightText` by one writer and `copyrightText` by
+    another. Both spellings appear in the wild; the version lookup below has
+    accepted both since it was written, and this exists so every property does.
+    """
+    return node.get(f"{profile}_{name}", node.get(name))
+
+
+def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
+    """Digests from a 3.0 element's `verifiedUsing` integrity methods.
+
+    3.0 replaced 2.x's `checksums` with a list of IntegrityMethod objects, of
+    which `Hash` is one; the algorithm may arrive bare (`sha256`) or namespaced
+    (`hashAlgorithm_sha256`), so the prefix is trimmed and the result lower-cased
+    to match `Component.hashes` and `File.hashes` elsewhere.
+
+    Applied to files only. Components on 3.0 documents carry no hashes today,
+    and giving them some would change what existing hash rules see on those
+    documents -- a separate change with its own blast radius.
+    """
+    hashes: dict[str, str] = {}
+    # JSON-LD compaction collapses a single-element array to a bare object
+    # unless the context pins `@container: @set`, so one hash may arrive either
+    # way. Iterating the bare object would walk its keys and find no dicts,
+    # leaving the file looking unchecksummed when it carried one.
+    raw = node.get("verifiedUsing") or []
+    for entry in (raw if isinstance(raw, list) else [raw]):
+        if not isinstance(entry, dict):
+            continue
+        if "Hash" not in spdx3_types(entry):
+            continue
+        # Only the `hashAlgorithm_` prefix comes off. Splitting on every
+        # underscore turned `sha3_256` into `256`, which is a different
+        # algorithm and one `hash_algorithm_in_set` would not recognise.
+        algorithm = str(entry.get("algorithm", "")).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+        algorithm = algorithm.removeprefix("hashAlgorithm_")
+        algorithm = algorithm.strip().lower()
+        value = entry.get("hashValue")
+        if algorithm and value:
+            hashes[algorithm] = str(value)
+    return hashes
+
 
 def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     graph = data.get("@graph", []) if isinstance(data, dict) else []
     components: list[Component] = []
+    files: list[File] = []
     document = Document(raw=data if isinstance(data, dict) else {})
     for node in graph:
         if not isinstance(node, dict):
             continue
-        ntype = str(node.get("type", "")).split(":")[-1]
-        if ntype in ("software_Package", "software_File", "Package"):
-            components.append(Component(
-                bom_ref=node.get("spdxId"),
+        ntypes = spdx3_types(node)
+        node_id = spdx3_id(node)
+        if "File" in ntypes:
+            # Mirrored, not moved: these already reach `components` below, and
+            # taking them out would change what every existing component rule
+            # sees on a 3.0 document.
+            files.append(File(
+                spdx_id=node_id,
                 name=node.get("name"),
-                version=node.get("software_packageVersion") or node.get("packageVersion"),
+                hashes=_spdx3_hashes(node),
+                # `software_copyrightText` is a direct property of a 3.0
+                # SoftwareArtifact, so it costs a lookup and the SPDX 2.x and
+                # CycloneDX paths both fill it -- leaving it empty here would
+                # make the same file answer differently by format.
+                #
+                # `licenses` stays empty on 3.0. Licensing there is not a field:
+                # it is a relationship to a separate license element, which the
+                # component path does not resolve either. Reading it is a
+                # separate change, not something to half-do for files alone.
+                copyright=_spdx3_prop(node, "copyrightText", "software"),
                 raw=node,
             ))
-        elif ntype == "SpdxDocument":
+        if ntypes & {"Package", "File"}:
+            components.append(Component(
+                bom_ref=node_id,
+                name=node.get("name"),
+                version=_spdx3_prop(node, "packageVersion", "software"),
+                raw=node,
+            ))
+        elif "SpdxDocument" in ntypes:
             document.name = node.get("name")
-            document.namespace = node.get("spdxId")
-        elif ntype == "CreationInfo":
+            document.namespace = node_id
+        elif "CreationInfo" in ntypes:
             document.timestamp = node.get("created")
             document.creators = list(node.get("createdBy", []) or [])
     return Sbom(
         sbom_format="spdx", spec_version=det.spec_version, encoding="json",
-        document=document, components=components, source_path=path,
+        document=document, components=components, files=files, source_path=path,
         raw=data if isinstance(data, dict) else {},
     )

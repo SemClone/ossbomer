@@ -32,6 +32,42 @@ class DetectionError(ValueError):
     """Raised when the file is not a recognizable SPDX or CycloneDX document."""
 
 
+def spdx3_types(node: dict) -> set[str]:
+    """Every class name a 3.0 element declares, however the JSON-LD spells it.
+
+    One graph has more than one valid shape. Compacted against the SPDX context a
+    node reads `"type": "software_File"`; with `@type` retained it reads a full
+    IRI, and JSON-LD allows a list of them. Namespace and profile prefixes are
+    trimmed either way, so `software_File`, `File` and the full IRI all answer
+    `File`.
+
+    A set rather than one name: `@type` may legitimately carry a node's whole
+    ancestry, and the first entry is not the authoritative one. Reading only
+    `raw[0]` turned `["…/Core/Element", "…/Software/File"]` into `Element`, so a
+    perfectly good file node was skipped and the schema gate then reported the
+    document as missing elements it declared.
+
+    Lives here rather than in the parser because the schema gate needs the same
+    answer: reading a shape the gate then rejects would report a document we
+    understood perfectly well as unreadable.
+    """
+    raw = node.get("type") or node.get("@type") or ""
+    values = raw if isinstance(raw, list) else [raw]
+    names = set()
+    for value in values:
+        name = str(value).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+        name = name.split(":")[-1].split("_")[-1]
+        if name:
+            names.add(name)
+    return names
+
+
+def spdx3_id(node: dict) -> str | None:
+    """A 3.0 element's identifier, compacted (`spdxId`) or expanded (`@id`)."""
+    value = node.get("spdxId") or node.get("@id")
+    return str(value) if value is not None else None
+
+
 @dataclass(frozen=True)
 class Detection:
     sbom_format: str  # "spdx" | "cyclonedx"
