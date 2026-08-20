@@ -289,6 +289,16 @@ def _purl_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[b
     return True, ""
 
 
+# NIST IR 7695 §5.3.2 restricts a WFN's `part` to `a` (application), `h`
+# (hardware) or `o` (operating system). The 2.3 formatted-string binding (§6.2)
+# additionally permits the logical values `*` (ANY) and `-` (NA) in any
+# attribute, which the 2.2 URI binding (§6.1) spells as an empty component.
+# Checking the count alone let `cpe:2.3:x:...` through while `cpe:/x:...` was
+# correctly rejected, so the same name passed or failed depending on its binding.
+CPE23_PARTS = frozenset({"a", "h", "o", "*", "-"})
+CPE22_PARTS = frozenset({"a", "h", "o", ""})
+
+
 @register("cpe_wellformed")
 def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     """Both CPE bindings, checked structurally rather than against a dictionary.
@@ -313,12 +323,15 @@ def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bo
             if len(parts) != 13:
                 return False, (f"{v!r} is not a well-formed CPE 2.3 name: "
                                f"expected 13 colon-separated components, found {len(parts)}")
+            if parts[2] not in CPE23_PARTS:
+                return False, (f"{v!r} is not a well-formed CPE 2.3 name: part must be "
+                               f"one of a/h/o (or '*'/'-'), found {parts[2]!r}")
         elif s.startswith("cpe:/"):
             parts = s[len("cpe:/"):].split(":")
             if len(parts) > 7:
                 return False, (f"{v!r} is not a well-formed CPE 2.2 URI: "
                                f"expected at most 7 components, found {len(parts)}")
-            if parts and parts[0] not in ("", "a", "h", "o"):
+            if parts and parts[0] not in CPE22_PARTS:
                 return False, (f"{v!r} is not a well-formed CPE 2.2 URI: "
                                f"part must be one of a/h/o, found {parts[0]!r}")
         else:

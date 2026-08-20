@@ -176,6 +176,10 @@ def _check(name, value):
     CPE22,
     "cpe:/a:vendor:prod",
     r"cpe:2.3:a:ven\:dor:prod:1.0:*:*:*:*:*:*:*",  # escaped colon is data, not a separator
+    "cpe:2.3:o:vendor:os:1.0:*:*:*:*:*:*:*",
+    "cpe:2.3:h:vendor:device:1.0:*:*:*:*:*:*:*",
+    "cpe:2.3:*:vendor:prod:1.0:*:*:*:*:*:*:*",      # ANY, §6.2
+    "cpe:2.3:-:vendor:prod:1.0:*:*:*:*:*:*:*",      # NA, §6.2
 ])
 def test_cpe_wellformed_accepts(value):
     assert _check("cpe_wellformed", value)
@@ -186,6 +190,8 @@ def test_cpe_wellformed_accepts(value):
     "cpe:2.3:a:vendor:prod:1.0:*:*:*:*:*:*:*:*",   # 14
     "cpe:/x:vendor:prod",                          # part must be a, h or o
     "cpe:/a:1:2:3:4:5:6:7",                        # more than 7 components
+    "cpe:2.3:x:vendor:prod:1.0:*:*:*:*:*:*:*",     # part must be a, h or o
+    "cpe:2.3::vendor:prod:1.0:*:*:*:*:*:*:*",      # empty part is not ANY here; §6.2 spells that '*'
     PURL,
     "vendor:prod:1.0",
 ])
@@ -198,11 +204,30 @@ def test_component_identifier_accepts_either_form(value):
     assert _check("component_identifier", value)
 
 
-@pytest.mark.parametrize("value", ["not-an-identifier", "cpe:2.3:a:bad", "pkg:", ""])
+@pytest.mark.parametrize("value", ["not-an-identifier", "cpe:2.3:a:bad", "pkg:", "",
+                                   "cpe:2.3:x:vendor:prod:1.0:*:*:*:*:*:*:*"])
 def test_component_identifier_rejects_malformed(value):
     # An empty value is absence, which `present` reports; this validator only
     # judges the shape of values that are there.
     assert _check("component_identifier", value) == (value == "")
+
+
+def test_the_part_check_does_not_depend_on_the_binding():
+    """The same product, named in both bindings, must get the same verdict.
+
+    `part` was checked for the 2.2 URI and not for the 2.3 formatted string, so
+    `cpe:/x:...` failed while `cpe:2.3:x:...` passed. A validator whose answer
+    depends on which binding the document chose is reporting on the encoding, not
+    on the identifier.
+    """
+    for bad_part in ("x", "z", "1"):
+        assert not _check("cpe_wellformed", f"cpe:/{bad_part}:vendor:prod")
+        assert not _check("cpe_wellformed",
+                          f"cpe:2.3:{bad_part}:vendor:prod:1.0:*:*:*:*:*:*:*")
+    for good_part in ("a", "h", "o"):
+        assert _check("cpe_wellformed", f"cpe:/{good_part}:vendor:prod")
+        assert _check("cpe_wellformed",
+                      f"cpe:2.3:{good_part}:vendor:prod:1.0:*:*:*:*:*:*:*")
 
 
 # ---- rule field resolution ---------------------------------------------------
