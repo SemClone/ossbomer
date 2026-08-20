@@ -17,7 +17,11 @@ follow [Semantic Versioning](https://semver.org/).
   encodings, from SPDX 3.0's `software_File` nodes including their
   `verifiedUsing` digests, and from CycloneDX components of `type: file`. The
   CycloneDX ones are mirrored rather than moved: taking them out of `components`
-  would change what every existing component rule sees.
+  would change what every existing component rule sees. A `metadata.component`
+  of `type: file` counts as an entry too — a BOM describing a single file
+  declares one, and reporting "no file inventory" for it would be wrong. It
+  joins the inventory only; the described subject is deliberately not a
+  component here and stays out of that list.
 
   A `file` rule answers two different questions and only one can be a violation.
   A document with no inventory reports `WARN` whatever the rule's severity —

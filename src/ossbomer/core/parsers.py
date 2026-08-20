@@ -196,12 +196,25 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     # `type` is "file". Mirrored into `files` rather than moved out of
     # `components`, so file rules can reach them without changing what every
     # existing component rule sees.
-    # `str()` before `.lower()`: a schema-invalid document can carry a non-string
-    # `type`, and the parser has to survive long enough for the schema gate to
-    # report that. Crashing here would replace a clear schema failure with a
-    # traceback.
-    files = [_cdx_file(c) for c in data.get("components", []) or []
-             if str(c.get("type") or "").lower() == "file"]
+    # The described subject counts too. A BOM whose `metadata.component` is a
+    # `type: file` declares a file and its checksum, and reporting "no file
+    # inventory" for it would be plainly wrong -- SPDX has no equivalent blind
+    # spot, since whatever its document describes sits in `packages` or `files`
+    # already. It joins `files` only: the root is deliberately not a component
+    # here, and moving it into `components` would change every component rule.
+    #
+    # `str()` before `.lower()`: a schema-invalid document can carry a
+    # non-string `type`, and the parser has to survive long enough for the
+    # schema gate to report that. Crashing here would replace a clear schema
+    # failure with a traceback.
+    def _is_file(entry: dict[str, Any]) -> bool:
+        return str(entry.get("type") or "").lower() == "file"
+
+    root = (data.get("metadata") or {}).get("component") or {}
+    candidates = list(data.get("components", []) or [])
+    if isinstance(root, dict) and _is_file(root):
+        candidates.insert(0, root)
+    files = [_cdx_file(c) for c in candidates if isinstance(c, dict) and _is_file(c)]
 
     deps: dict[str, list[str]] = {}
     for d in data.get("dependencies", []) or []:

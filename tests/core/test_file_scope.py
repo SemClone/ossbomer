@@ -124,6 +124,47 @@ def test_file_typed_components_stay_in_the_component_list_too(tmp_path):
     assert [f.name for f in sbom.files] == ["src/a.c"]
 
 
+def _cdx_with_root(tmp_path, root, *components):
+    doc = {
+        "bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+        "metadata": {"timestamp": "2026-01-01T00:00:00Z", "component": root},
+        "components": list(components),
+    }
+    path = tmp_path / "root.cdx.json"
+    path.write_text(json.dumps(doc))
+    return parse_file(str(path))
+
+
+def test_a_file_typed_root_component_counts_as_the_inventory(tmp_path):
+    """A BOM describing a single file declares one, and saying "no file
+    inventory" about it would be plainly wrong. SPDX has no equivalent blind
+    spot: whatever its document describes already sits in `packages` or `files`.
+    """
+    sbom = _cdx_with_root(tmp_path, {
+        "type": "file", "name": "app.bin",
+        "hashes": [{"alg": "SHA-256", "content": SHA256}],
+    })
+    assert [f.name for f in sbom.files] == ["app.bin"]
+    assert sbom.files[0].hashes == {"sha-256": SHA256}
+
+
+def test_the_root_file_does_not_become_a_component(tmp_path):
+    """`metadata.component` is the BOM's subject, not one of its parts, and this
+    reader has always kept it out of `components`. Adding it to the inventory
+    must not quietly change that -- every component rule would see a new entry.
+    """
+    sbom = _cdx_with_root(tmp_path, {"type": "file", "name": "app.bin"},
+                          {"type": "file", "name": "src/a.c"})
+    assert [c.name for c in sbom.components] == ["src/a.c"]
+    assert [f.name for f in sbom.files] == ["app.bin", "src/a.c"]
+
+
+def test_a_root_that_is_not_a_file_stays_out_of_the_inventory(tmp_path):
+    sbom = _cdx_with_root(tmp_path, {"type": "application", "name": "app"},
+                          {"type": "file", "name": "src/a.c"})
+    assert [f.name for f in sbom.files] == ["src/a.c"]
+
+
 def test_components_that_are_not_files_stay_out_of_the_inventory(tmp_path):
     sbom = _cdx(tmp_path, {"type": "library", "name": "lib", "version": "1.0"})
     assert sbom.files == []
