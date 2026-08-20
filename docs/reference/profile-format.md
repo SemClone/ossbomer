@@ -151,7 +151,7 @@ File scope:
 | `name` | The file's path. SPDX writes it as `fileName`, CycloneDX as the component `name`. |
 | `spdx_id` | The element identifier. SPDX's `SPDXID`, CycloneDX's `bom-ref`. |
 | `hashes` | Algorithm to digest, the same shape as a component's, so one validator serves both. |
-| `licenses`, `copyright` | Per-file declarations, where the document makes them. |
+| `licenses`, `copyright` | Per-file declarations, where the document makes them. On SPDX 3.0 `licenses` is empty: licensing there is a relationship to a separate license element rather than a field, and nothing resolves it yet — components are in the same position. |
 
 Anything not listed falls back to a dotted lookup into the component's raw source
 mapping, so `field: raw.someVendorExtension` works for data the IR does not model.

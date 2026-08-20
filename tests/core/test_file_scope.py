@@ -339,6 +339,33 @@ def test_a_type_list_is_read_in_full(tmp_path):
     assert [f.verdict for f in result.findings if f.rule_id == "schema-valid"] == [Verdict.PASS]
 
 
+def test_spdx3_file_copyright_reaches_the_ir(tmp_path):
+    """A direct property in 3.0, and filled on the other two paths. Leaving it
+    empty here would make the same file answer differently by format."""
+    sbom = _spdx3(tmp_path, {
+        "type": "software_File", "spdxId": "https://example.com/f",
+        "creationInfo": "_:ci", "name": "src/a.c",
+        "software_copyrightText": "Copyright 2026 Example",
+    })
+    assert sbom.files[0].copyright == "Copyright 2026 Example"
+
+
+def test_spdx3_file_licenses_are_a_known_gap(tmp_path):
+    """Recorded rather than assumed.
+
+    Licensing in 3.0 is a relationship to a separate license element, not a
+    property on the file, so a field lookup cannot find it. Components are in
+    exactly the same position, so this is not something the file inventory
+    regressed -- and resolving it for files alone would be the half-fix this
+    branch has already had to undo once.
+    """
+    sbom = _spdx3(tmp_path, {
+        "type": "software_File", "spdxId": "https://example.com/f",
+        "creationInfo": "_:ci", "name": "src/a.c",
+    })
+    assert sbom.files[0].licenses == []
+
+
 def test_a_single_verified_using_hash_may_arrive_unwrapped(tmp_path):
     """JSON-LD compaction collapses a one-element array to a bare object unless
     the context pins `@container: @set`, so one hash arrives either way.

@@ -59,6 +59,12 @@ follow [Semantic Versioning](https://semver.org/).
   "@graph contains no SpdxDocument/CreationInfo element" for a graph that
   plainly had both. Reading a shape the gate then rejects is not support.
 
+  A 3.0 file's `software_copyrightText` reaches the IR too, since the SPDX 2.x
+  and CycloneDX paths both fill `copyright` and the same file should not answer
+  differently by format. `licenses` stays empty on 3.0: licensing there is a
+  relationship to a separate license element rather than a property, which
+  nothing resolves yet — components are in the same position.
+
   {: .note }
   This is not full expanded-JSON-LD support. A document in the fully expanded
   form — a top-level array, properties keyed by IRI, values boxed in `@value` —

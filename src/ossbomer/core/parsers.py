@@ -450,6 +450,16 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
                 spdx_id=node_id,
                 name=node.get("name"),
                 hashes=_spdx3_hashes(node),
+                # `software_copyrightText` is a direct property of a 3.0
+                # SoftwareArtifact, so it costs a lookup and the SPDX 2.x and
+                # CycloneDX paths both fill it -- leaving it empty here would
+                # make the same file answer differently by format.
+                #
+                # `licenses` stays empty on 3.0. Licensing there is not a field:
+                # it is a relationship to a separate license element, which the
+                # component path does not resolve either. Reading it is a
+                # separate change, not something to half-do for files alone.
+                copyright=node.get("software_copyrightText"),
                 raw=node,
             ))
         if ntypes & {"Package", "File"}:
