@@ -20,7 +20,7 @@ from ossbomer.core.engine import _extract_any
 from ossbomer.core.parsers import parse_file
 from ossbomer.core.profile import Rule
 from ossbomer.core.runner import run
-from ossbomer.core.validators import _REGISTRY, ValidatorContext
+from ossbomer.core.validators import _REGISTRY, ValidatorContext, _split_unescaped
 
 CPE23 = "cpe:2.3:a:vendor:prod:1.0:*:*:*:*:*:*:*"
 CPE22 = "cpe:/a:vendor:prod:1.0"
@@ -200,6 +200,51 @@ def test_cpe_wellformed_accepts(value):
 ])
 def test_cpe_wellformed_rejects(value):
     assert not _check("cpe_wellformed", value)
+
+
+def _cpe23(*attributes):
+    """A CPE 2.3 name from `part` plus the 10 attributes after it, padded with
+    ANY. Built rather than typed: these names are 13 colon-separated components
+    and hand-written ones are easy to get one short, which the count check would
+    then reject for the wrong reason.
+    """
+    attrs = list(attributes) + ["*"] * (11 - len(attributes))
+    return ":".join(["cpe", "2.3", *attrs])
+
+
+def test_an_escaped_colon_is_data_not_a_delimiter():
+    """§6.2.2: a backslash escapes the character after it."""
+    name = _cpe23("a", r"ven\:dor", "prod", "1.0")
+    assert _check("cpe_wellformed", name)
+
+
+def test_a_colon_after_an_escaped_backslash_is_a_delimiter():
+    """The parity case. `\\` is a literal backslash ending the attribute, so the
+    colon after it separates components -- the run before it has even length.
+
+    A one-character lookbehind read that colon as escaped and undercounted the
+    components, failing a valid name. False FAIL is the wrong direction for a
+    conformance tool: it reports a correct document as violating a requirement.
+    """
+    name = _cpe23("a", "ven" + "\\" * 2, "prod", "1.0")
+    assert _check("cpe_wellformed", name)
+
+
+def test_three_backslashes_escape_the_colon_again():
+    """Odd run: the first two escape each other, the third escapes the colon."""
+    name = _cpe23("a", "ven" + "\\" * 3 + ":dor", "prod", "1.0")
+    assert _check("cpe_wellformed", name)
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("a:b:c", ["a", "b", "c"]),
+    (r"a\:b:c", [r"a\:b", "c"]),          # odd run -> escaped, one component
+    ("a" + "\\" * 2 + ":b", ["a" + "\\" * 2, "b"]),   # even run -> delimiter
+    ("", [""]),
+    (":", ["", ""]),
+])
+def test_split_unescaped_counts_backslash_runs_by_parity(raw, expected):
+    assert _split_unescaped(raw) == expected
 
 
 @pytest.mark.parametrize("value", [PURL, CPE23, CPE22])

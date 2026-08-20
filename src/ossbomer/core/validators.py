@@ -289,6 +289,39 @@ def _purl_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[b
     return True, ""
 
 
+def _split_unescaped(value: str, delimiter: str = ":") -> list[str]:
+    """Split on delimiters that are not escaped, counting backslashes by parity.
+
+    NIST IR 7695 §6.2.2 escapes a special character in an attribute with a
+    backslash, and a literal backslash as `\\`. So whether a delimiter is data
+    depends on the *length* of the backslash run before it: odd escapes it, even
+    does not, because those backslashes escape each other.
+
+    A one-character negative lookbehind gets that wrong in the even case, reading
+    the delimiter after `\\` as data and undercounting the components. Python's
+    `re` cannot express a variable-length lookbehind, so this scans instead. The
+    failure direction mattered: `cpe:2.3:a:ven\\:prod:...` is a valid name for an
+    attribute ending in a backslash, and it was being reported as malformed.
+    """
+    parts: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in value:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            current.append(char)
+            escaped = True
+        elif char == delimiter:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return parts
+
+
 # NIST IR 7695 §5.3.2 restricts a WFN's `part` to `a` (application), `h`
 # (hardware) or `o` (operating system). The 2.3 formatted-string binding (§6.2)
 # additionally permits the logical values `*` (ANY) and `-` (NA) in any
@@ -317,9 +350,9 @@ def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bo
             continue
         s = str(v).strip()
         if s.startswith("cpe:2.3:"):
-            # 13 parts total. Escaped colons (`\:`) are literal data inside an
-            # attribute, not separators, so they must not be counted.
-            parts = re.split(r"(?<!\\):", s)
+            # 13 parts total. Escaped colons are data inside an attribute, not
+            # separators, so they must not be counted.
+            parts = _split_unescaped(s)
             if len(parts) != 13:
                 return False, (f"{v!r} is not a well-formed CPE 2.3 name: "
                                f"expected 13 colon-separated components, found {len(parts)}")

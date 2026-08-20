@@ -47,8 +47,10 @@ follow [Semantic Versioning](https://semver.org/).
   rather than shadowing a usable value behind them. `field` is unchanged and
   remains the single-attribute form.
 - `cpe_wellformed`, checking CPE names structurally in both bindings: the CPE
-  2.3 formatted string of 13 components (NIST IR 7695 §6.2, with escaped colons
-  treated as data rather than separators) and the CPE 2.2 URI (§6.1). `part` is
+  2.3 formatted string of 13 components (NIST IR 7695 §6.2) and the CPE 2.2 URI
+  (§6.1). Delimiters are counted by backslash parity, since §6.2.2 escapes a
+  literal backslash as `\\`: an odd run before a colon escapes it, an even run
+  does not. `part` is
   restricted to `a`/`h`/`o` in both, and 2.3 attributes must be non-empty, since
   that binding writes ANY as `*` and NA as `-`. It checks shape, not existence —
   whether a vendor and product name something real is not a question an SBOM
