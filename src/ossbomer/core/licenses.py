@@ -53,6 +53,8 @@ VIA_CASE = "case-corrected"           # matched an SPDX key ignoring case
 VIA_SCANCODE_KEY = "scancode-key"     # matched the lowercase-hyphen form
 VIA_DEPRECATED_KEY = "deprecated-key"  # matched a superseded SPDX key
 VIA_ALIAS = "alias"                   # matched a curated alias below
+VIA_DESCRIPTIVE = "descriptive-name"  # matched an alias through its prose spelling
+AMBIGUOUS = "ambiguous"               # names the licence but not which SPDX id
 UNRESOLVED = "unresolved"             # could not be resolved; not guessed at
 DECLARED_UNKNOWN = "declared-unknown"  # NOASSERTION / NONE: an honest absence
 
@@ -87,6 +89,9 @@ SEPARATOR_REWRITES: tuple[tuple[re.Pattern, str], ...] = (
 #   "Apache"        -- 1.0, 1.1 and 2.0 all exist
 #
 # Those stay unresolved on purpose, and a profile reports them as such.
+# FALLBACK, pending SemClone/ospac#89 -- see the note on AMBIGUOUS_NAMES below.
+# ospac already supplies 1471 mappings; these 25 are the folk spellings it does
+# not carry yet. Adding to this table is the wrong direction: add to ospac.
 ALIASES: dict[str, str] = {
     # Apache 2.0: version is explicit in every spelling here.
     "apache 2": "Apache-2.0",
@@ -130,6 +135,8 @@ ALIASES: dict[str, str] = {
 #
 # Everything else in the family ("BSD", "Apache", "LGPL", ...) is already
 # rejected by the parser; this list exists for the exceptions to that.
+# FALLBACK, pending SemClone/ospac#89. Which names are too vague to resolve is a
+# property of the licence landscape rather than of this tool.
 NEVER_RESOLVE: set[str] = {"gpl", "gpl+"}
 
 # Where operators and aliases can be extended without editing this package.
@@ -173,6 +180,19 @@ class LicenseDeclaration:
         return self.normalized is not None
 
     @property
+    def ambiguous(self) -> bool:
+        """The text names a licence, but not precisely enough for an SPDX id.
+
+        Distinct from plain unresolved. "GNU LESSER GENERAL PUBLIC LICENSE,
+        Version 2.1" identifies the licence and the version and still does not
+        say whether later versions are permitted, which is the whole difference
+        between `LGPL-2.1-only` and `LGPL-2.1-or-later`. Both remain
+        unresolved -- but "I do not recognise this" and "this is not specific
+        enough to be an identifier" send a reader to different fixes.
+        """
+        return self.method == AMBIGUOUS
+
+    @property
     def declared_unknown(self) -> bool:
         """True when the document explicitly said it does not know."""
         return self.method == DECLARED_UNKNOWN
@@ -207,7 +227,12 @@ def _ospac_aliases() -> dict[str, str]:
 
     ospac is the source of truth for license metadata across these tools: it
     regenerates its records from SPDX releases, so mappings that derive from
-    SPDX belong there rather than being re-curated in every consumer.
+    SPDX belong there rather than being re-curated in every consumer. A
+    hand-held list is not wrong when written -- it is wrong two SPDX releases
+    later, quietly, and differently in each consumer keeping its own copy.
+
+    The built-in tables above are a fallback for when ospac is absent, tracked
+    for removal in SemClone/ospac#89.
 
     Two ways to get them, tried in order:
 
@@ -308,22 +333,66 @@ def _overlay_sources() -> list[dict[str, Any]]:
 
 
 @lru_cache(maxsize=1)
-def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...]]:
-    """Built-in tables merged with every overlay. Overlays win on conflict."""
+def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
+                       dict[str, str], set[str]]:
+    """Built-in tables merged with every overlay. Overlays win on conflict.
+
+    Returns the exact tables and their descriptive-key views. The views are
+    built here, in the same layering pass, rather than derived afterwards:
+    re-keying the merged table later loses which layer each entry came from, so
+    two spellings collapsing to one key would be resolved by whichever sorted
+    first instead of by which layer declared it. That made an adopter's
+    override apply to `"apache software license, version 2.0"` and not to `"The
+    Apache Software License, Version 2.0"` -- the same licence, two
+    identifiers, decided by an article.
+    """
+    aliases: dict[str, str] = {}
+    descriptive: dict[str, str] = {}
+
+    def add(key: str, value: str) -> None:
+        squashed = _WHITESPACE.sub(" ", str(key)).strip().lower()
+        aliases[squashed] = str(value)
+        descriptive[descriptive_key(squashed)] = str(value)
+
     # Layered lowest to highest: ospac's official names, then the curated folk
-    # spellings here (which SPDX never publishes), then adopter overlays.
-    aliases = dict(_ospac_aliases())
-    aliases.update({k.lower(): v for k, v in ALIASES.items()})
+    # spellings here (which SPDX never publishes), then adopter overlays. Later
+    # layers overwrite, in both views.
+    for key, value in _ospac_aliases().items():
+        add(key, value)
+    for key, value in ALIASES.items():
+        add(key, value)
+
     never = set(NEVER_RESOLVE)
     separators = list(SEPARATOR_REWRITES)
+    overridden: dict[str, str] = {}
     for overlay in _overlay_sources():
         for key, value in (overlay.get("aliases") or {}).items():
-            aliases[_WHITESPACE.sub(" ", str(key)).strip().lower()] = str(value)
+            add(key, value)
+            overridden[descriptive_key(str(key))] = str(value)
         for key in overlay.get("never_resolve") or []:
             never.add(_WHITESPACE.sub(" ", str(key)).strip().lower())
         for pattern, operator in (overlay.get("separators") or {}).items():
             separators.append((re.compile(str(pattern)), str(operator)))
-    return aliases, never, tuple(separators)
+
+    # An override reaches every spelling of the name it overrides, including
+    # ones that carry a shipped alias of their own. Without this an adopter who
+    # remapped "apache software license, version 2.0" still got the shipped
+    # `Apache-2.0` for "Apache Software License 2.0" -- the same name, differing
+    # only by the punctuation `descriptive_key` exists to ignore. "Overlays win
+    # on conflict" has to mean the conflict, not one spelling of it.
+    if overridden:
+        for key in list(aliases):
+            replacement = overridden.get(descriptive_key(key))
+            if replacement is not None:
+                aliases[key] = replacement
+
+    # A denylist entry has to refuse the spellings the descriptive step would
+    # otherwise reach. Refusing only the exact string let `"The Eclipse Public
+    # License 2.0"` resolve while `"Eclipse Public License 2.0"` was refused,
+    # which is the failure the denylist exists to prevent.
+    never_descriptive = {descriptive_key(n) for n in never}
+
+    return aliases, never, tuple(separators), descriptive, never_descriptive
 
 
 def reset_caches() -> None:
@@ -336,6 +405,57 @@ def reset_caches() -> None:
     _tables.cache_clear()
     _ospac_aliases.cache_clear()
     normalize.cache_clear()
+
+
+# FALLBACK, pending SemClone/ospac#89. This is licence data, so it belongs in
+# ospac, which regenerates from SPDX releases. Held here only until ospac
+# exposes it, because a hand-maintained list is not wrong on the day it is
+# written -- it is wrong two SPDX releases later, quietly, and differently in
+# every consumer holding its own copy. Shrink this to nothing as ospac covers
+# it; do not grow it.
+#
+# Prose spellings that name a licence family and version without saying which
+# SPDX identifier applies. The GNU licences are the whole of this problem: the
+# difference between `-only` and `-or-later` is the copyright holder's grant,
+# which the licence's own name does not carry. Resolving either way would assert
+# something the document never said.
+#
+# Matched on the descriptive key below, so case, a leading "The" and
+# ", Version 2.1" spellings all land here.
+AMBIGUOUS_NAMES: dict[str, str] = {
+    "gnu general public license 1.0": "GPL-1.0-only or GPL-1.0-or-later",
+    "gnu general public license 2.0": "GPL-2.0-only or GPL-2.0-or-later",
+    "gnu general public license 3.0": "GPL-3.0-only or GPL-3.0-or-later",
+    "gnu lesser general public license 2.1": "LGPL-2.1-only or LGPL-2.1-or-later",
+    "gnu lesser general public license 3.0": "LGPL-3.0-only or LGPL-3.0-or-later",
+    "gnu library general public license 2.0": "LGPL-2.0-only or LGPL-2.0-or-later",
+    "gnu affero general public license 3.0": "AGPL-3.0-only or AGPL-3.0-or-later",
+}
+
+# Noise that carries no meaning in a licence name, stripped before matching so
+# one alias entry serves every spelling of it.
+_LEADING_THE = re.compile(r"^the\s+")
+_VERSION_WORD = re.compile(r",?\s*\bversions?\b\s*", re.IGNORECASE)
+_COMMA = re.compile(r"\s*,\s*")
+
+
+def descriptive_key(text: str) -> str:
+    """The comparison form of a prose licence name.
+
+    An SBOM writes the same licence as "Apache License, Version 2.0", "The
+    Apache Software License, version 2.0" and "Apache License 2.0" depending on
+    which POM it came from, and Maven-sourced documents carry the prose name far
+    more often than the identifier. Listing every spelling would be an
+    open-ended table; normalising the spelling away is one function.
+
+    Applied to both sides of the lookup, so the alias table stays written in
+    whichever form reads naturally.
+    """
+    key = _WHITESPACE.sub(" ", text).strip().lower()
+    key = _LEADING_THE.sub("", key)
+    key = _VERSION_WORD.sub(" ", key)
+    key = _COMMA.sub(" ", key)
+    return _WHITESPACE.sub(" ", key).strip()
 
 
 @lru_cache(maxsize=1)
@@ -394,13 +514,20 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
         return LicenseDeclaration(raw=text, source=source, normalized=None,
                                   method=DECLARED_UNKNOWN)
 
-    aliases, never, separators = _tables()
+    aliases, never, separators, descriptive_aliases, never_descriptive = _tables()
     squashed_early = _WHITESPACE.sub(" ", text).lower()
+
+    descriptive = descriptive_key(squashed_early)
 
     # 0. Refuse anything on the denylist before anything else gets a chance to
     #    resolve it. Bare "GPL" is accepted upstream as GPL-1.0-or-later, and
     #    letting that through would be a confident wrong answer.
-    if squashed_early in never:
+    #
+    #    Both spellings, and both here rather than later: a denylist checked
+    #    after the alias lookups is not a denylist. `never_resolve: ["MIT
+    #    License"]` refused that string and then resolved "The MIT License"
+    #    through a shipped alias further down.
+    if squashed_early in never or descriptive in never_descriptive:
         return LicenseDeclaration(text, source, None, UNRESOLVED)
 
     # 1. Already an SPDX expression or identifier. Covers the common case and,
@@ -410,6 +537,18 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     canonical = _canonical_expression(text)
     if canonical:
         return LicenseDeclaration(text, source, canonical, VIA_EXPRESSION)
+
+    # 1b. Named, but not precisely enough to be an identifier. Above every
+    #     lookup, because any of them can answer with a confident id: an overlay
+    #     alias for "gnu lesser general public license 2.1" resolved it to
+    #     LGPL-2.1-only under one spelling while another spelling reported the
+    #     ambiguity, which is the same document getting two answers.
+    #
+    #     Below step 1 on purpose. Ambiguity is a property of the prose name,
+    #     not of the licence, so `LGPL-2.1-only` and the deprecated `LGPL-2.1`
+    #     still resolve through SPDX's own mapping.
+    if descriptive in AMBIGUOUS_NAMES:
+        return LicenseDeclaration(text, source, None, AMBIGUOUS)
 
     # 2. The same string with ecosystem separators translated to SPDX operators.
     rewritten = text
@@ -442,5 +581,12 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     if alias:
         return LicenseDeclaration(text, source, alias, VIA_ALIAS)
 
-    # 7. Not resolvable without guessing, so it is reported rather than guessed.
+    # 7. The same aliases, matched through the prose spelling: a leading "The",
+    #    ", Version 2.0" and stray commas removed from both sides. This is
+    #    normalisation rather than inference -- the alias still has to be there.
+    alias = descriptive_aliases.get(descriptive)
+    if alias:
+        return LicenseDeclaration(text, source, alias, VIA_DESCRIPTIVE)
+
+    # 8. Not resolvable without guessing, so it is reported rather than guessed.
     return LicenseDeclaration(text, source, None, UNRESOLVED)
