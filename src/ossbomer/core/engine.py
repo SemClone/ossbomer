@@ -136,8 +136,12 @@ def _eval_rule(sbom: Sbom, rule: Rule) -> list[Finding]:
             findings.append(Finding(rule.id, rule.layer, rule.severity, rule.category,
                                     Verdict.PASS, rule.citation, path, value, "ok"))
             return
-        data_available = value is not None and not (
-            isinstance(value, str) and is_null_value(value))
+        # `_has_value`, not an inline null test: MUST_WHERE_AVAILABLE turns on
+        # this flag, so "available" here has to mean what `present` means. An
+        # inline `value is not None` counted an empty container as data, which
+        # made a rule on `hashes` or `licenses` report FAIL for a component that
+        # simply never declared one -- the case the severity exists to excuse.
+        data_available = _has_value(value)
         findings.append(Finding(
             rule.id, rule.layer, rule.severity, rule.category,
             _verdict_for(rule.severity, data_available), rule.citation, path, value, msg))

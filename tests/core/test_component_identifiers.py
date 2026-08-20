@@ -233,6 +233,43 @@ def test_the_part_check_does_not_depend_on_the_binding():
                       f"cpe:2.3:{good_part}:vendor:prod:1.0:*:*:*:*:*:*:*")
 
 
+# ---- MUST_WHERE_AVAILABLE over container fields -------------------------------
+# "Where available" excuses a document that never declared the data. Deciding
+# availability with an inline `value is not None` counted an empty container as
+# declared, so a component with no hashes at all reported FAIL -- exactly the
+# case the severity exists to excuse. `cisa-component-hash` is such a rule.
+
+def _hash_verdict(tmp_path, **component):
+    doc = {
+        "bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+        "metadata": {"timestamp": "2026-01-01T00:00:00Z",
+                     "tools": [{"name": "t", "version": "1"}]},
+        "components": [{"type": "library", "name": "x", "version": "1.0",
+                        "purl": "pkg:npm/x@1.0", **component}],
+    }
+    path = tmp_path / "hashes.cdx.json"
+    path.write_text(json.dumps(doc))
+    (result,) = run(str(path), ["cisa-2025-min"])
+    return next(f.verdict.value for f in result.findings
+                if f.rule_id == "cisa-component-hash")
+
+
+def test_a_component_declaring_no_hash_is_not_a_violation(tmp_path):
+    assert _hash_verdict(tmp_path) == "WARN"
+
+
+def test_a_component_declaring_an_empty_hash_list_is_not_a_violation(tmp_path):
+    assert _hash_verdict(tmp_path, hashes=[]) == "WARN"
+
+
+def test_a_component_declaring_the_wrong_hash_still_fails(tmp_path):
+    """The other half. Softening absence must not soften a hash that is there
+    and does not meet the requirement."""
+    assert _hash_verdict(
+        tmp_path, hashes=[{"alg": "MD5", "content": "d41d8cd98f00b204e9800998ecf8427e"}]
+    ) == "FAIL"
+
+
 # ---- rule field resolution ---------------------------------------------------
 
 def _rule(**kwargs):

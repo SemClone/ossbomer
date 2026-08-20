@@ -30,6 +30,16 @@ follow [Semantic Versioning](https://semver.org/).
   the test corpus was affected, since no fixture declared a CPE — which is how
   this survived.
 
+- `MUST_WHERE_AVAILABLE` failed rules whose field holds a container rather than a
+  string. The severity exists to excuse a document that never declared the data,
+  and availability was decided with an inline null test that counted an empty
+  list or dict as declared. `cisa-component-hash` therefore reported FAIL for a
+  component carrying no hashes at all — the exact case "where available" is
+  there to permit — and `cisa-2025-min`, plus anything extending it, scored it
+  as a violation. Absent now reports WARN; a hash that is present and outside
+  the required set still fails. Predates the identifier work above and was found
+  while reviewing it.
+
 ### Added
 - `fields` on a rule, for a requirement a document may satisfy in more than one
   way. Lists IR attributes in precedence order and hands the validators the
