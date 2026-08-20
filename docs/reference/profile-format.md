@@ -177,6 +177,15 @@ Within an entry the severity governs as usual, so a `MUST` rule still fails a
 file whose checksum is missing — which is what SPDX 2.3 §8.4 asks for, since it
 makes `FileChecksum` mandatory on an entry that exists.
 
+{: .warning }
+Adding a file rule to a profile stops that profile ever returning PASS for an
+SBOM with no file inventory — which is most package-level SBOMs. The
+no-inventory WARN is not a MUST violation, so the verdict is WARN rather than
+FAIL, but WARN is not PASS and no amount of otherwise-perfect data clears it.
+Weigh that before putting a file rule in a profile that also has to judge
+dependency-level documents. Composing it as a separate profile, and running
+both, keeps the two answers separate.
+
 {: .note }
 A file with no checksum reaches a rule only from CycloneDX. spdx-tools refuses
 to parse an SPDX file entry that has none, enforcing §8.4 before any profile
