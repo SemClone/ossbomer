@@ -307,6 +307,74 @@ def test_a_non_string_component_type_does_not_crash_the_parser(tmp_path, bad_typ
     assert [f.name for f in sbom.files] == ["src/a.c"]
 
 
+def test_a_type_list_is_read_in_full(tmp_path):
+    """`@type` may carry a node's whole ancestry, and the first entry is not the
+    authoritative one. Reading only `raw[0]` turned
+    `["…/Core/Element", "…/Software/File"]` into `Element`, so a good file node
+    was skipped and the schema gate then called the document incomplete.
+    """
+    terms = "https://spdx.org/rdf/3.0.1/terms"
+    doc = {
+        "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+        "@graph": [
+            {"@type": [f"{terms}/Core/Element", f"{terms}/Core/CreationInfo"],
+             "@id": "_:ci", "specVersion": "3.0.1",
+             "created": "2026-01-01T00:00:00Z", "createdBy": ["_:agent"]},
+            {"@type": [f"{terms}/Core/Element", f"{terms}/Core/SpdxDocument"],
+             "@id": "https://example.com/d", "name": "d"},
+            {"@type": [f"{terms}/Core/Element", f"{terms}/Software/File"],
+             "@id": "https://example.com/f", "name": "src/a.c",
+             "verifiedUsing": [{"@type": [f"{terms}/Core/Hash"],
+                                "algorithm": "sha256", "hashValue": SHA256}]},
+        ],
+    }
+    path = tmp_path / "multitype.spdx.jsonld"
+    path.write_text(json.dumps(doc))
+    sbom = parse_file(str(path))
+    assert [f.name for f in sbom.files] == ["src/a.c"]
+    assert sbom.files[0].hashes == {"sha256": SHA256}
+    assert sbom.document.timestamp == "2026-01-01T00:00:00Z"
+
+    (result,) = run(str(path), ["cisa-2026-min"])
+    assert [f.verdict for f in result.findings if f.rule_id == "schema-valid"] == [Verdict.PASS]
+
+
+@pytest.mark.parametrize("declared,allowed,expected", [
+    ("sha3_256", "SHA3-256", True),     # SPDX 3.0's spelling
+    ("sha3-256", "SHA3-256", True),     # CycloneDX's
+    ("SHA3256", "SHA3-256", True),
+    ("sha256", "SHA3-256", False),      # a different algorithm, still rejected
+])
+def test_algorithm_names_compare_across_separators(declared, allowed, expected):
+    """Every source spells the separator differently. Stripping only the hyphen
+    left the underscore form comparing unequal, so a valid SHA3-256 digest from
+    an SPDX 3.0 document failed a rule that allows SHA3-256.
+    """
+    ok, _ = validators.get("hash_algorithm_in_set")(
+        {declared: "ab" * 32}, validators.ValidatorContext(None), {"algs": [allowed]})
+    assert ok is expected
+
+
+def test_fully_expanded_jsonld_is_still_out_of_scope(tmp_path):
+    """Recorded so the limit is known rather than assumed.
+
+    The fully expanded form -- a top-level array, properties keyed by IRI,
+    values boxed in `@value` -- is rejected at detection, before any of the type
+    normalisation above runs. Accepting `@type`/`@id` did not change that, and
+    claiming otherwise would overstate what this reads.
+    """
+    from ossbomer.core.detect import DetectionError
+
+    terms = "https://spdx.org/rdf/3.0.1/terms"
+    path = tmp_path / "expanded.jsonld"
+    path.write_text(json.dumps([
+        {"@id": "_:ci", "@type": [f"{terms}/Core/CreationInfo"],
+         f"{terms}/Core/created": [{"@value": "2026-01-01T00:00:00Z"}]},
+    ]))
+    with pytest.raises(DetectionError):
+        parse_file(str(path))
+
+
 # ---- identity ----------------------------------------------------------------
 
 @pytest.mark.parametrize("entry,expected", [

@@ -447,13 +447,25 @@ def _semver_or_calver(value: Any, ctx: ValidatorContext, params: dict) -> tuple[
     return True, ""
 
 
+def _norm_alg(name: Any) -> str:
+    """An algorithm name reduced to what identifies it.
+
+    The separator is spelled differently by every source: `SHA3-256` in a
+    profile, `sha3-256` in CycloneDX, `sha3_256` from SPDX 3.0's
+    `hashAlgorithm_sha3_256`. Stripping only the hyphen left the underscore
+    form comparing unequal, so a file carrying a valid SHA3-256 digest failed a
+    rule that allows SHA3-256.
+    """
+    return str(name).replace("-", "").replace("_", "").lower()
+
+
 @register("hash_algorithm_in_set")
 def _hash_algorithm_in_set(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
-    allowed = {str(a).replace("-", "").lower() for a in params.get("algs", [])}
+    allowed = {_norm_alg(a) for a in params.get("algs", [])}
     hashes = value if isinstance(value, dict) else getattr(ctx.target, "hashes", {}) or {}
     # str() before replace(): a document is free to put anything in an algorithm
     # position, including null, and a validator must answer rather than raise.
-    present = {str(k).replace("-", "").lower() for k in hashes}
+    present = {_norm_alg(k) for k in hashes}
     if not present:
         return False, "no hashes present"
     if allowed and not (present & allowed):

@@ -11,7 +11,7 @@ import json
 from datetime import timezone
 from typing import Any
 
-from .detect import Detection, detect_file, spdx3_id, spdx3_type
+from .detect import Detection, detect_file, spdx3_id, spdx3_types
 from .ir import Component, Document, File, Sbom
 from .licenses import (
     SOURCE_EXPRESSION,
@@ -411,7 +411,7 @@ def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     for entry in node.get("verifiedUsing", []) or []:
         if not isinstance(entry, dict):
             continue
-        if spdx3_type(entry) != "Hash":
+        if "Hash" not in spdx3_types(entry):
             continue
         # Only the `hashAlgorithm_` prefix comes off. Splitting on every
         # underscore turned `sha3_256` into `256`, which is a different
@@ -435,9 +435,9 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     for node in graph:
         if not isinstance(node, dict):
             continue
-        ntype = spdx3_type(node)
+        ntypes = spdx3_types(node)
         node_id = spdx3_id(node)
-        if ntype == "File":
+        if "File" in ntypes:
             # Mirrored, not moved: these already reach `components` below, and
             # taking them out would change what every existing component rule
             # sees on a 3.0 document.
@@ -447,17 +447,17 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
                 hashes=_spdx3_hashes(node),
                 raw=node,
             ))
-        if ntype in ("Package", "File"):
+        if ntypes & {"Package", "File"}:
             components.append(Component(
                 bom_ref=node_id,
                 name=node.get("name"),
                 version=node.get("software_packageVersion") or node.get("packageVersion"),
                 raw=node,
             ))
-        elif ntype == "SpdxDocument":
+        elif "SpdxDocument" in ntypes:
             document.name = node.get("name")
             document.namespace = node_id
-        elif ntype == "CreationInfo":
+        elif "CreationInfo" in ntypes:
             document.timestamp = node.get("created")
             document.creators = list(node.get("createdBy", []) or [])
     return Sbom(

@@ -46,23 +46,31 @@ follow [Semantic Versioning](https://semver.org/).
   drifted twice: an inline null check counted an empty container as data, and a
   key-based mapping check counted `hashes: {"sha256": ""}` as data while
   `present` called it absent.
-- SPDX 3.0 documents in expanded JSON-LD parsed to nothing at all. The reader
-  matched `"type"` and `"spdxId"`, which is how a node reads compacted against
-  the SPDX context; expanded, the same graph reads `"@type"` with a full IRI and
-  `"@id"`. An expanded document therefore produced no components, no files and
-  no creation info, and was reported as an SBOM that declared nothing rather
-  than one that could not be read. Both shapes are accepted now, for packages
-  and the document node as well as files, and the schema gate shares the same
-  normaliser — it built its type set from `"type"` alone, so an expanded
-  document that parsed correctly was still reported "@graph contains no
-  SpdxDocument/CreationInfo element" for a graph that plainly had both. Reading
-  a shape the gate then rejects is not support. Predates the file inventory;
-  found while adding it.
+- SPDX 3.0 nodes spelling their type and id as `@type` and `@id` parsed to
+  nothing at all. The reader matched `"type"` and `"spdxId"` only, so such a
+  document produced no components, no files and no creation info and was
+  reported as an SBOM that declared nothing rather than one that could not be
+  read. Both spellings are accepted now — for packages and the document node as
+  well as files — a full IRI is trimmed to its class name, and a `@type` list
+  is read in full rather than by its first entry, which had turned
+  `["…/Core/Element", "…/Software/File"]` into `Element` and skipped the node.
+  The schema gate shares the same normaliser: it built its type set from
+  `"type"` alone, so a document that parsed correctly was still reported
+  "@graph contains no SpdxDocument/CreationInfo element" for a graph that
+  plainly had both. Reading a shape the gate then rejects is not support.
+
+  {: .note }
+  This is not full expanded-JSON-LD support. A document in the fully expanded
+  form — a top-level array, properties keyed by IRI, values boxed in `@value` —
+  is still rejected at detection, before any of this runs. Predates the file
+  inventory; found while adding it.
 - SPDX 3.0 hash algorithm names containing an underscore were truncated.
   Trimming the `hashAlgorithm_` prefix by splitting on every underscore left
-  `sha3_256` as `256` — a different algorithm, and one `hash_algorithm_in_set`
-  does not recognise, so a file carrying a valid SHA3-256 digest would fail a
-  rule that allows SHA3-256. Only the prefix comes off now.
+  `sha3_256` as `256`, a different algorithm entirely. Only the prefix comes off
+  now, and `hash_algorithm_in_set` compares names with the underscore stripped
+  as well as the hyphen — it stripped only the hyphen, so `sha3_256` and
+  `SHA3-256` still compared unequal and a file carrying a valid SHA3-256 digest
+  failed a rule that allows SHA3-256.
 - A CycloneDX component whose `type` is not a string crashed the parser with an
   `AttributeError` instead of reaching the schema gate, which is what exists to
   report it. Introduced with the file inventory, which selects components by
