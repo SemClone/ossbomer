@@ -285,6 +285,17 @@ def test_files_sharing_a_name_under_different_parents_are_both_kept(tmp_path):
     assert [f.hashes["sha-256"] for f in sbom.files] == [SHA256, other]
 
 
+@pytest.mark.parametrize("bad_nested", [42, None, "str", {}, [42]])
+def test_a_malformed_nested_components_value_does_not_crash_the_walk(tmp_path, bad_nested):
+    """`components` is an array per the schema, and the walk this branch added
+    would iterate whatever was there. A schema-invalid document must reach the
+    schema gate, which is what reports it."""
+    sbom = _cdx(tmp_path,
+                {"type": "library", "name": "lib", "components": bad_nested},
+                {"type": "file", "name": "src/a.c"})
+    assert [f.name for f in sbom.files] == ["src/a.c"]
+
+
 @pytest.mark.parametrize("bad_hash", [
     {"alg": None, "content": "x"},      # `alg` is required and a string
     {"alg": {"x": 1}, "content": "y"},

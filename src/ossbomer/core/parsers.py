@@ -249,7 +249,12 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
         bearing on the file inventory.
         """
         found: list[dict[str, Any]] = []
-        for entry in entries or []:
+        if not isinstance(entries, list):
+            # `components` is an array per the schema. A document that puts
+            # something else there is invalid, and the schema gate is what says
+            # so -- reached only if parsing survives to call it.
+            return found
+        for entry in entries:
             if not isinstance(entry, dict):
                 continue
             found.append(entry)
