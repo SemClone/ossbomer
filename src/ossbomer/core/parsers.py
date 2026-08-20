@@ -95,7 +95,10 @@ def _cdx_hashes(entry: dict[str, Any]) -> dict[str, str]:
         if not isinstance(item, dict):
             continue
         alg, content = item.get("alg"), item.get("content")
-        if isinstance(alg, str) and content is not None:
+        # An empty digest is no digest. Kept in step with the SPDX 3.0 reader,
+        # which drops an empty `hashValue`, so the same non-answer does not
+        # produce two different IRs depending on which format expressed it.
+        if isinstance(alg, str) and content is not None and str(content).strip():
             hashes[alg.lower()] = str(content)
     return hashes
 
@@ -254,22 +257,32 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
         return found
 
     root = (data.get("metadata") or {}).get("component") or {}
-    candidates = _walk(data.get("components"))
-    if isinstance(root, dict) and _is_file(root):
-        candidates.insert(0, root)
+    entries = _walk(data.get("components"))
+    if isinstance(root, dict):
+        # The subject may carry subcomponents of its own, and a BOM describing an
+        # application often puts its files there. Missing them reported "no file
+        # inventory" for a document declaring checksummed files.
+        entries += _walk(root.get("components"))
 
-    # A generator may name the described subject in `components` as well, and
-    # counting it twice would report the same file's checksum twice. Identity
-    # first, since `bom-ref` is the only thing guaranteed unique when present.
-    files, seen = [], set()
-    for entry in candidates:
-        if not _is_file(entry):
-            continue
-        key = entry.get("bom-ref") or (entry.get("name"), entry.get("version"))
-        if key in seen:
-            continue
-        seen.add(key)
-        files.append(_cdx_file(entry))
+    files = [_cdx_file(e) for e in entries if _is_file(e)]
+
+    # The described subject is the one entry that can legitimately appear twice,
+    # because a generator may also name it in `components`. Nothing else is
+    # deduped: `name` is not unique in CycloneDX and nested files routinely carry
+    # a relative one with no version and no `bom-ref`, so two different LICENSE
+    # files under different parents would have collapsed into one -- silently
+    # dropping a real file and its checksum, which is worse than reporting a
+    # duplicate.
+    #
+    # The copy already in the tree wins. A generator that repeats the subject
+    # tends to give the fuller record there, and taking the root's version threw
+    # away digests the document had declared.
+    if isinstance(root, dict) and _is_file(root):
+        ref = root.get("bom-ref")
+        already = any(e.get("bom-ref") == ref for e in entries if _is_file(e)) if ref \
+            else any(e.get("name") == root.get("name") for e in entries if _is_file(e))
+        if not already:
+            files.insert(0, _cdx_file(root))
 
     deps: dict[str, list[str]] = {}
     for d in data.get("dependencies", []) or []:

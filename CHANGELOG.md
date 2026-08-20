@@ -35,8 +35,20 @@ follow [Semantic Versioning](https://semver.org/).
   severity governs as usual, so a `MUST` rule still fails a file whose checksum
   is missing.
 
-  No bundled profile carries a file rule yet. This is the parser and engine
-  work; rules follow per profile, where a clause actually calls for one.
+  No bundled profile carries a file rule yet, so the file inventory itself
+  changes no verdict: every bundled profile over every corpus document produces
+  identical findings, scores and verdicts.
+
+  The SPDX 3.0 fixes below are the exception, and they are not additive by
+  design. A document whose nodes spell their type as `@type` previously parsed
+  to nothing and was reported schema-invalid; it now parses, so its schema
+  verdict flips to PASS and its score moves — downward, because rules finally
+  see the components they were always meant to judge. That is the fix working,
+  not a regression, but it is a verdict change and should not be described as
+  anything else.
+
+  This is the parser and engine work; rules follow per profile, where a clause
+  actually calls for one.
 
 ### Fixed
 - `present` passed a mapping field that was empty. `_as_list` had no branch for

@@ -30,6 +30,7 @@ SPDX_FIXTURES = [
     "tests/fixtures/spdx/valid/spdx-2.3.spdx",
     "tests/fixtures/spdx/valid/spdx-2.3.xml",
     "tests/fixtures/spdx/valid/spdx-2.3.yaml",
+    "tests/fixtures/spdx/valid/spdx-2.3.rdf.xml",
 ]
 
 
@@ -221,6 +222,19 @@ def test_nesting_does_not_change_the_component_list(tmp_path):
     assert [c.name for c in sbom.components] == ["lib"]
 
 
+def test_the_root_subtree_is_walked_too(tmp_path):
+    """The described subject may carry subcomponents of its own, and a BOM
+    describing an application often puts its files there. Checking only whether
+    the root *itself* was a file reported "no file inventory" for a document
+    declaring checksummed files."""
+    sbom = _cdx_with_root(tmp_path, {
+        "type": "application", "name": "app",
+        "components": [{"type": "file", "name": "app/main.c",
+                        "hashes": [{"alg": "SHA-256", "content": SHA256}]}],
+    })
+    assert [f.name for f in sbom.files] == ["app/main.c"]
+
+
 def test_the_described_subject_is_not_counted_twice(tmp_path):
     """A generator may name the root in `components` as well, and counting it
     twice would report the same file's checksum twice."""
@@ -230,12 +244,45 @@ def test_the_described_subject_is_not_counted_twice(tmp_path):
     assert [f.name for f in sbom.files] == ["app.bin"]
 
 
+def test_the_copy_already_in_the_tree_wins(tmp_path):
+    """A generator that repeats the subject tends to give the fuller record in
+    `components`. Taking the root's copy threw away digests the document had
+    declared, and a MUST checksum rule would then fail it."""
+    sbom = _cdx_with_root(
+        tmp_path,
+        {"type": "file", "name": "app.bin", "bom-ref": "r1"},
+        {"type": "file", "name": "app.bin", "bom-ref": "r1",
+         "hashes": [{"alg": "SHA-256", "content": SHA256}]},
+    )
+    assert [(f.name, f.hashes) for f in sbom.files] == [("app.bin", {"sha-256": SHA256})]
+
+
 def test_a_distinct_file_alongside_the_root_is_still_counted(tmp_path):
     """Dedup must not swallow a different file."""
     sbom = _cdx_with_root(tmp_path,
                           {"type": "file", "name": "app.bin", "bom-ref": "r1"},
                           {"type": "file", "name": "other.c", "bom-ref": "r2"})
     assert [f.name for f in sbom.files] == ["app.bin", "other.c"]
+
+
+def test_files_sharing_a_name_under_different_parents_are_both_kept(tmp_path):
+    """`name` is not unique in CycloneDX, and a nested file routinely carries a
+    relative one with no version and no `bom-ref`.
+
+    Deduping on `(name, version)` collapsed two different LICENSE files into
+    one, silently dropping a real file and its checksum. Only the described
+    subject can legitimately appear twice; nothing else is deduped, because
+    reporting a duplicate is a far smaller wrong than losing a file.
+    """
+    other = "b" * 64
+    sbom = _cdx(tmp_path,
+                {"type": "library", "name": "libA", "components": [
+                    {"type": "file", "name": "LICENSE",
+                     "hashes": [{"alg": "SHA-256", "content": SHA256}]}]},
+                {"type": "library", "name": "libB", "components": [
+                    {"type": "file", "name": "LICENSE",
+                     "hashes": [{"alg": "SHA-256", "content": other}]}]})
+    assert [f.hashes["sha-256"] for f in sbom.files] == [SHA256, other]
 
 
 @pytest.mark.parametrize("bad_hash", [
@@ -258,12 +305,56 @@ def test_a_malformed_hash_entry_does_not_crash_the_parser(tmp_path, bad_hash):
     assert sbom.components[1].hashes == {}
 
 
+def test_an_empty_digest_is_dropped_on_both_formats(tmp_path):
+    """An empty digest is no digest, and the two readers must agree on that.
+
+    SPDX 3.0 dropped an empty `hashValue` while CycloneDX kept an empty
+    `content`, so the same non-answer produced two different IRs depending on
+    which format expressed it. No rule verdict differed -- `present` calls both
+    absent -- but the parity is the point: that divergence is the class of
+    defect the CPE work was about.
+    """
+    cdx = _cdx(tmp_path, {"type": "file", "name": "a.c",
+                          "hashes": [{"alg": "SHA-256", "content": ""}]})
+    spdx3 = _spdx3(tmp_path, {
+        "type": "software_File", "spdxId": "https://example.com/f",
+        "creationInfo": "_:ci", "name": "a.c",
+        "verifiedUsing": [{"type": "Hash", "algorithm": "sha256", "hashValue": ""}],
+    })
+    assert cdx.files[0].hashes == spdx3.files[0].hashes == {}
+
+
 def test_a_good_hash_survives_alongside_a_malformed_one(tmp_path):
     """Tolerating junk must not mean discarding what was valid."""
     sbom = _cdx(tmp_path, {"type": "file", "name": "src/a.c", "hashes": [
         {"alg": None, "content": "x"},
         {"alg": "SHA-256", "content": SHA256},
     ]})
+    assert sbom.files[0].hashes == {"sha-256": SHA256}
+
+
+def test_the_xml_encoding_finds_nested_files_too(tmp_path):
+    """CycloneDX XML reaches the mapper through a library round-trip rather than
+    straight from the document, so it is a genuinely separate path and a gap
+    there would be silent."""
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<bom xmlns="http://cyclonedx.org/schema/bom/1.6" version="1">
+  <metadata><timestamp>2026-01-01T00:00:00Z</timestamp></metadata>
+  <components>
+    <component type="library"><name>lib</name><version>1.0</version>
+      <components>
+        <component type="file"><name>lib/a.c</name>
+          <hashes><hash alg="SHA-256">{SHA256}</hash></hashes>
+        </component>
+      </components>
+    </component>
+  </components>
+</bom>
+"""
+    path = tmp_path / "nested.cdx.xml"
+    path.write_text(xml)
+    sbom = parse_file(str(path))
+    assert [f.name for f in sbom.files] == ["lib/a.c"]
     assert sbom.files[0].hashes == {"sha-256": SHA256}
 
 
@@ -658,6 +749,11 @@ def test_present_and_has_value_agree(value):
     """They answer the same question in two places -- `present` for the rule,
     `_has_value` for MUST_WHERE_AVAILABLE and multi-field lookup. Drift between
     them means a rule reports absence while the severity says data was there.
+
+    `_has_value` delegates to `has_value` today, so this passes by construction
+    rather than by checking anything. Kept as a guard on that arrangement: if
+    either side ever grows its own logic, this is what fails. The table above it
+    is what actually pins the answers.
     """
     ok, _ = validators.get("present")(value, validators.ValidatorContext(None), {})
     assert ok is _has_value(value)
