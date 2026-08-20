@@ -49,6 +49,7 @@ Redistributed because the publisher's terms allow it.
 | [OpenChain Telco SBOM Guide](documents/openchain-telco-sbom-guide-v1.1.md) | v1.1, approved 2025-03-20 | `openchain-telco-v1.1` | CC0-1.0 per the Telco WG repository |
 | [Regulation (EU) 2024/2847, extracts](documents/eu-cra-2024-2847-extracts.txt) | OJ L, 2024-11-20 | `eu-cra-annex-i` | Commission Decision 2011/833/EU |
 | [Executive Order 14028, Improving the Nation's Cybersecurity](documents/eo-14028-improving-the-nations-cybersecurity.pdf) | 86 FR 26633, 2021-05-12 | `fedramp-sbom` | US Government work, 17 U.S.C. §105 |
+| [OMB M-26-05, Adopting a Risk-based Approach to Software and Hardware Security](documents/omb-m-26-05-risk-based-approach-software-hardware-security.pdf) | 2026-01-23 | `omb-m-26-05` | US Government work, 17 U.S.C. §105 |
 
 Checksums:
 
@@ -58,6 +59,7 @@ b0fbbe5e3c5773977df1f402eceb845c4d5715a02cde4d967e54aef51856b716  ntia-2021-sbom
 927e0ecccf4f40ce4172a4e2a252e440a62d02b2626513d89c57f4e7a4db5760  openchain-telco-sbom-guide-v1.1.md
 aa9b059df1a42d870520c5eb428f3a932b0f1b93464e1b4ab5ba24701c3efabc  eu-cra-2024-2847-extracts.txt
 250578b7bdd468cb67e4f64d332f6648694302257670ae966d37b21aa138a282  eo-14028-improving-the-nations-cybersecurity.pdf
+54d5132e19ab394b20fad0fbec57a945320a7cda1918f499fb594ad9af2167ab  omb-m-26-05-risk-based-approach-software-hardware-security.pdf
 ```
 
 The EU entry is an extract rather than the full Official Journal: Annex I Part II
@@ -98,6 +100,7 @@ the bytes behind it are older, not newer.
 | Profile | Status |
 | ------- | ------ |
 | `fedramp-sbom` | Resolved in 2.1.0. FedRAMP publishes no SBOM data field list; EO 14028 §4(e)(vii) requires an SBOM and §4(f) delegates the field list to Commerce/NTIA, whose document CISA now maintains. The profile composes `cisa-2026-min` rather than restating fields under a FedRAMP label. The EO is held above. |
+| `omb-m-26-05` | M-26-05 mandates no SBOM and names no data field: it rescinds M-22-18/M-23-16 and lets each agency choose whether to require one. It points at CISA's 2025 draft minimum elements as reference material, cited by publication date, so the profile composes `cisa-2025-min` rather than inventing `omb-*` rules. A PASS means the fields the memorandum pointed at are present, not that a requirement was met; the requirement lives in whatever contractual term the agency wrote. The memorandum is held above. |
 | `aibom-v0.1` | Deliberately net-new. No regulator has published AIBOM minimum elements, which the profile's own `sources` states. Its rules are advisory (`SHOULD`) for that reason. |
 
 ## Where the license profiles come from

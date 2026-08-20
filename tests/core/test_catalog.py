@@ -15,7 +15,7 @@ CATALOG = list_catalog()
 EXPECTED_PRESENT = {
     "ntia-min-elements", "cisa-2025-min", "cisa-2026-min", "eu-cra-annex-i",
     "bsi-tr-03183-v2.1", "cert-in-v2.0", "openchain-telco-v1.1", "fedramp-sbom",
-    "aibom-v0.1",
+    "aibom-v0.1", "omb-m-26-05",
 }
 
 
@@ -100,4 +100,4 @@ def test_documented_profile_count_matches_the_catalog():
     """The count appears in four places and drifted once already. A usable
     profile is one that is not withdrawn."""
     usable = [pid for pid in CATALOG if not load_profile(pid).withdrawn]
-    assert len(usable) == 13, f"catalog has {len(usable)} usable profiles; update the docs"
+    assert len(usable) == 14, f"catalog has {len(usable)} usable profiles; update the docs"
