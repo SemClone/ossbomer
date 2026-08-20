@@ -41,6 +41,20 @@ follow [Semantic Versioning](https://semver.org/).
   `known_unknowns_declared` had been working around this locally since it was
   written.
 
+  The engine's availability test and `present` now share one implementation
+  (`validators.has_value`). They asked the same question in three places and
+  drifted twice: an inline null check counted an empty container as data, and a
+  key-based mapping check counted `hashes: {"sha256": ""}` as data while
+  `present` called it absent.
+- SPDX 3.0 documents in expanded JSON-LD parsed to nothing at all. The reader
+  matched `"type"` and `"spdxId"`, which is how a node reads compacted against
+  the SPDX context; expanded, the same graph reads `"@type"` with a full IRI and
+  `"@id"`. An expanded document therefore produced no components, no files and
+  no creation info, and was reported as an SBOM that declared nothing rather
+  than one that could not be read. Both shapes are accepted now, for packages
+  and the document node as well as files. Predates the file inventory; found
+  while adding it.
+
 ### Changed
 - A rule naming an unknown `scope` is refused when the profile loads, rather
   than silently producing no findings. Previously a typo made the rule vanish,

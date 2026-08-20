@@ -15,7 +15,7 @@ from typing import Any
 
 from ..oslc.policy import LicensePolicy, OspacUnavailable
 from . import validators as V
-from .ir import Sbom, is_null_value
+from .ir import Sbom
 from .model import Category, Finding, Severity, Verdict
 from .profile import Profile, ProfileError, Rule
 
@@ -23,19 +23,11 @@ from .profile import Profile, ProfileError, Rule
 def _has_value(value: Any) -> bool:
     """Whether `value` is something a validator could act on.
 
-    Mirrors what `present` counts as data, so a lookup across alternatives and
-    the rule that follows it agree on what "absent" means. An empty container is
-    absence, and so is one holding nothing but SPDX null tokens: without this an
-    empty `licenses` list would satisfy the lookup below and shadow a populated
-    alternative listed after it.
+    Delegates to the validator layer so this and `present` cannot answer the
+    question differently -- they already have, twice. See
+    :func:`ossbomer.core.validators.has_value`.
     """
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return not is_null_value(value)
-    if isinstance(value, (list, tuple, set, dict)):
-        return any(not (isinstance(v, str) and is_null_value(v)) for v in value)
-    return True
+    return V.has_value(value)
 
 
 def _extract_any(target: Any, fields: list[str]) -> Any:

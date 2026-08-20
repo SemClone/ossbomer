@@ -391,6 +391,31 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
 
 # ---- SPDX 3.0 (best-effort JSON-LD) ------------------------------------------
 
+def _spdx3_type(node: dict[str, Any]) -> str:
+    """A 3.0 element's class name, however the document spells it.
+
+    JSON-LD carries the same graph in more than one shape. Compacted against the
+    SPDX context a node reads `"type": "software_File"`; expanded, it reads
+    `"@type": ".../File"`. Only the first was matched, so an expanded document
+    parsed to nothing at all -- no components, no files, no creation info -- and
+    reported as an SBOM that declared nothing rather than one we could not read.
+
+    The namespace prefix is trimmed either way, so `software_File`, `File` and a
+    full IRI all answer `File`.
+    """
+    raw = node.get("type") or node.get("@type") or ""
+    if isinstance(raw, list):  # expanded JSON-LD allows multiple types
+        raw = raw[0] if raw else ""
+    name = str(raw).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+    return name.split(":")[-1].split("_")[-1]
+
+
+def _spdx3_id(node: dict[str, Any]) -> str | None:
+    """A 3.0 element's identifier, compacted (`spdxId`) or expanded (`@id`)."""
+    value = node.get("spdxId") or node.get("@id")
+    return str(value) if value is not None else None
+
+
 def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     """Digests from a 3.0 element's `verifiedUsing` integrity methods.
 
@@ -407,7 +432,7 @@ def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     for entry in node.get("verifiedUsing", []) or []:
         if not isinstance(entry, dict):
             continue
-        if str(entry.get("type", "")).split(":")[-1] != "Hash":
+        if _spdx3_type(entry) != "Hash":
             continue
         algorithm = str(entry.get("algorithm", "")).split("_")[-1].strip().lower()
         value = entry.get("hashValue")
@@ -426,27 +451,28 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     for node in graph:
         if not isinstance(node, dict):
             continue
-        ntype = str(node.get("type", "")).split(":")[-1]
-        if ntype == "software_File":
+        ntype = _spdx3_type(node)
+        node_id = _spdx3_id(node)
+        if ntype == "File":
             # Mirrored, not moved: these already reach `components` below, and
             # taking them out would change what every existing component rule
             # sees on a 3.0 document.
             files.append(File(
-                spdx_id=node.get("spdxId"),
+                spdx_id=node_id,
                 name=node.get("name"),
                 hashes=_spdx3_hashes(node),
                 raw=node,
             ))
-        if ntype in ("software_Package", "software_File", "Package"):
+        if ntype in ("Package", "File"):
             components.append(Component(
-                bom_ref=node.get("spdxId"),
+                bom_ref=node_id,
                 name=node.get("name"),
                 version=node.get("software_packageVersion") or node.get("packageVersion"),
                 raw=node,
             ))
         elif ntype == "SpdxDocument":
             document.name = node.get("name")
-            document.namespace = node.get("spdxId")
+            document.namespace = node_id
         elif ntype == "CreationInfo":
             document.timestamp = node.get("created")
             document.creators = list(node.get("createdBy", []) or [])

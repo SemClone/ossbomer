@@ -204,6 +204,45 @@ def test_spdx3_packages_stay_out_of_the_inventory(tmp_path):
     assert [c.name for c in sbom.components] == ["p"]
 
 
+def test_expanded_jsonld_parses_the_same_as_the_compact_form(tmp_path):
+    """JSON-LD carries one graph in more than one shape.
+
+    Compacted against the SPDX context a node reads `"type": "software_File"`
+    and `"spdxId"`; expanded, it reads `"@type"` with a full IRI and `"@id"`.
+    Only the first was matched, so an expanded document parsed to nothing at all
+    -- no components, no files, no creation info -- and was reported as an SBOM
+    that declared nothing rather than one that could not be read. That predates
+    the file inventory and applied to packages and the document node too.
+    """
+    terms = "https://spdx.org/rdf/3.0.1/terms"
+    expanded = {
+        "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+        "@graph": [
+            {"@type": f"{terms}/Core/CreationInfo", "@id": "_:ci",
+             "specVersion": "3.0.1", "created": "2026-01-01T00:00:00Z",
+             "createdBy": ["_:agent"]},
+            {"@type": f"{terms}/Core/SpdxDocument", "@id": "https://example.com/d",
+             "name": "d"},
+            # A list of types, which expanded JSON-LD permits.
+            {"@type": [f"{terms}/Software/Package"], "@id": "https://example.com/p",
+             "name": "p", "software_packageVersion": "1.0"},
+            {"@type": f"{terms}/Software/File", "@id": "https://example.com/f",
+             "name": "src/a.c",
+             "verifiedUsing": [{"@type": f"{terms}/Core/Hash",
+                                "algorithm": "sha256", "hashValue": SHA256}]},
+        ],
+    }
+    path = tmp_path / "expanded.spdx.jsonld"
+    path.write_text(json.dumps(expanded))
+    sbom = parse_file(str(path))
+
+    assert sbom.document.timestamp == "2026-01-01T00:00:00Z"
+    assert [c.name for c in sbom.components] == ["p", "src/a.c"]
+    assert [f.name for f in sbom.files] == ["src/a.c"]
+    assert sbom.files[0].spdx_id == "https://example.com/f"
+    assert sbom.files[0].hashes == {"sha256": SHA256}
+
+
 # ---- identity ----------------------------------------------------------------
 
 @pytest.mark.parametrize("entry,expected", [
@@ -289,6 +328,8 @@ def test_every_file_is_evaluated_not_just_the_first(tmp_path):
     ({}, False),
     ({"sha256": SHA256}, True),
     ({"sha256": ""}, False),
+    ({"sha256": "NOASSERTION"}, False),
+    ({"a": "", "b": SHA256}, True),
     ([], False),
     (["x"], True),
     (None, False),
@@ -299,7 +340,10 @@ def test_present_reads_a_mapping_by_its_values(value, expected):
     assert ok is expected
 
 
-@pytest.mark.parametrize("value", [{}, {"sha256": SHA256}, [], ["x"], None, "", "x"])
+@pytest.mark.parametrize("value", [
+    {}, {"sha256": SHA256}, {"sha256": ""}, {"sha256": "NOASSERTION"},
+    {"a": "", "b": SHA256}, [], [""], ["x"], None, "", "x",
+])
 def test_present_and_has_value_agree(value):
     """They answer the same question in two places -- `present` for the rule,
     `_has_value` for MUST_WHERE_AVAILABLE and multi-field lookup. Drift between

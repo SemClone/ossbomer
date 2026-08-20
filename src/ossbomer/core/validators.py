@@ -79,6 +79,23 @@ def _as_list(value: Any) -> list:
 
 # ---- core validators ---------------------------------------------------------
 
+def has_value(value: Any) -> bool:
+    """Whether `value` carries something a rule could act on.
+
+    The single answer to "is there data here", used by `present` below and by the
+    engine to decide `MUST_WHERE_AVAILABLE` availability and which of a rule's
+    alternative `fields` to read. Those three asked the same question in three
+    places and drifted twice: an inline null test counted an empty container as
+    data, and a key-based mapping check counted `{"sha256": ""}` as data while
+    `present` called it absent. Sharing the implementation is what stops that
+    happening a third time.
+    """
+    items = _as_list(value)
+    if not items:
+        return False
+    return not all(isinstance(v, str) and is_null_value(v) for v in items)
+
+
 @register("present")
 def _present(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
     items = _as_list(value)
