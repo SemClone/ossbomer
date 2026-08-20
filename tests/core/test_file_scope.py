@@ -339,15 +339,32 @@ def test_a_type_list_is_read_in_full(tmp_path):
     assert [f.verdict for f in result.findings if f.rule_id == "schema-valid"] == [Verdict.PASS]
 
 
-def test_spdx3_file_copyright_reaches_the_ir(tmp_path):
-    """A direct property in 3.0, and filled on the other two paths. Leaving it
-    empty here would make the same file answer differently by format."""
+@pytest.mark.parametrize("key", ["software_copyrightText", "copyrightText"])
+def test_spdx3_file_copyright_reaches_the_ir(tmp_path, key):
+    """A direct property in 3.0, and filled on the other two paths, so leaving
+    it empty would make the same file answer differently by format.
+
+    Both spellings, because the JSON-LD context qualifies a profile's properties
+    and writers differ on whether the prefix survives compaction. The version
+    lookup has accepted both since it was written.
+    """
     sbom = _spdx3(tmp_path, {
         "type": "software_File", "spdxId": "https://example.com/f",
         "creationInfo": "_:ci", "name": "src/a.c",
-        "software_copyrightText": "Copyright 2026 Example",
+        key: "Copyright 2026 Example",
     })
     assert sbom.files[0].copyright == "Copyright 2026 Example"
+
+
+@pytest.mark.parametrize("key", ["software_packageVersion", "packageVersion"])
+def test_spdx3_package_version_accepts_both_spellings(tmp_path, key):
+    """The precedent this generalises. Pinned so folding it into the shared
+    lookup cannot quietly drop one of the two spellings it already handled."""
+    sbom = _spdx3(tmp_path, {
+        "type": "software_Package", "spdxId": "https://example.com/p",
+        "creationInfo": "_:ci", "name": "p", key: "1.0",
+    })
+    assert sbom.components[0].version == "1.0"
 
 
 def test_spdx3_file_licenses_are_a_known_gap(tmp_path):

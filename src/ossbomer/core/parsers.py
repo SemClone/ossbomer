@@ -395,6 +395,17 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
 
 # ---- SPDX 3.0 (best-effort JSON-LD) ------------------------------------------
 
+def _spdx3_prop(node: dict[str, Any], name: str, profile: str) -> Any:
+    """A 3.0 property, with or without its profile prefix.
+
+    The JSON-LD context qualifies a profile's properties, so the same field is
+    written `software_copyrightText` by one writer and `copyrightText` by
+    another. Both spellings appear in the wild; the version lookup below has
+    accepted both since it was written, and this exists so every property does.
+    """
+    return node.get(f"{profile}_{name}", node.get(name))
+
+
 def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     """Digests from a 3.0 element's `verifiedUsing` integrity methods.
 
@@ -459,14 +470,14 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
                 # it is a relationship to a separate license element, which the
                 # component path does not resolve either. Reading it is a
                 # separate change, not something to half-do for files alone.
-                copyright=node.get("software_copyrightText"),
+                copyright=_spdx3_prop(node, "copyrightText", "software"),
                 raw=node,
             ))
         if ntypes & {"Package", "File"}:
             components.append(Component(
                 bom_ref=node_id,
                 name=node.get("name"),
-                version=node.get("software_packageVersion") or node.get("packageVersion"),
+                version=_spdx3_prop(node, "packageVersion", "software"),
                 raw=node,
             ))
         elif "SpdxDocument" in ntypes:
