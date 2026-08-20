@@ -52,8 +52,21 @@ follow [Semantic Versioning](https://semver.org/).
   `"@id"`. An expanded document therefore produced no components, no files and
   no creation info, and was reported as an SBOM that declared nothing rather
   than one that could not be read. Both shapes are accepted now, for packages
-  and the document node as well as files. Predates the file inventory; found
-  while adding it.
+  and the document node as well as files, and the schema gate shares the same
+  normaliser — it built its type set from `"type"` alone, so an expanded
+  document that parsed correctly was still reported "@graph contains no
+  SpdxDocument/CreationInfo element" for a graph that plainly had both. Reading
+  a shape the gate then rejects is not support. Predates the file inventory;
+  found while adding it.
+- SPDX 3.0 hash algorithm names containing an underscore were truncated.
+  Trimming the `hashAlgorithm_` prefix by splitting on every underscore left
+  `sha3_256` as `256` — a different algorithm, and one `hash_algorithm_in_set`
+  does not recognise, so a file carrying a valid SHA3-256 digest would fail a
+  rule that allows SHA3-256. Only the prefix comes off now.
+- A CycloneDX component whose `type` is not a string crashed the parser with an
+  `AttributeError` instead of reaching the schema gate, which is what exists to
+  report it. Introduced with the file inventory, which selects components by
+  `type`; a traceback is a worse answer than a schema failure.
 
 ### Changed
 - A rule naming an unknown `scope` is refused when the profile loads, rather

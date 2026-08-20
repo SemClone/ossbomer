@@ -20,6 +20,7 @@ from ossbomer.core.ir import File
 from ossbomer.core.model import Category, Severity, Verdict
 from ossbomer.core.parsers import parse_file
 from ossbomer.core.profile import Profile, ProfileError, Rule, _parse_rule
+from ossbomer.core.runner import run
 
 SHA1 = "d6a770ba38583ed4bb4525bd96e50461655d2758"
 SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -241,6 +242,69 @@ def test_expanded_jsonld_parses_the_same_as_the_compact_form(tmp_path):
     assert [f.name for f in sbom.files] == ["src/a.c"]
     assert sbom.files[0].spdx_id == "https://example.com/f"
     assert sbom.files[0].hashes == {"sha256": SHA256}
+
+
+@pytest.mark.parametrize("algorithm,expected", [
+    ("sha256", "sha256"),
+    ("hashAlgorithm_sha256", "sha256"),
+    ("sha3_256", "sha3_256"),
+    ("hashAlgorithm_sha3_256", "sha3_256"),
+    ("blake2b256", "blake2b256"),
+    ("https://spdx.org/rdf/3.0.1/terms/Core/HashAlgorithm/sha3_512", "sha3_512"),
+])
+def test_only_the_hash_algorithm_prefix_is_trimmed(tmp_path, algorithm, expected):
+    """`sha3_256` has an underscore inside the name.
+
+    Splitting on every underscore left `256`, which is a different algorithm and
+    one `hash_algorithm_in_set` would not recognise -- so a file with a valid
+    SHA3-256 digest would fail a rule that allows SHA3-256.
+    """
+    sbom = _spdx3(tmp_path, {
+        "type": "software_File", "spdxId": "https://example.com/f",
+        "creationInfo": "_:ci", "name": "src/a.c",
+        "verifiedUsing": [{"type": "Hash", "algorithm": algorithm, "hashValue": SHA256}],
+    })
+    assert list(sbom.files[0].hashes) == [expected]
+
+
+def test_an_expanded_document_also_passes_the_schema_gate(tmp_path):
+    """Reading a shape the gate then rejects is not support.
+
+    `validate_schema` built its type set from `"type"` alone, so an expanded
+    document parsed into the IR correctly and was still reported schema-invalid
+    -- "@graph contains no SpdxDocument/CreationInfo element" for a graph that
+    plainly had both. Parser and gate share one normaliser now.
+    """
+    terms = "https://spdx.org/rdf/3.0.1/terms"
+    doc = {
+        "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+        "@graph": [
+            {"@type": f"{terms}/Core/CreationInfo", "@id": "_:ci",
+             "specVersion": "3.0.1", "created": "2026-01-01T00:00:00Z",
+             "createdBy": ["_:agent"]},
+            {"@type": f"{terms}/Core/SpdxDocument", "@id": "https://example.com/d",
+             "name": "d"},
+        ],
+    }
+    path = tmp_path / "expanded.spdx.jsonld"
+    path.write_text(json.dumps(doc))
+    (result,) = run(str(path), ["cisa-2026-min"])
+    schema = [f for f in result.findings if f.rule_id == "schema-valid"]
+    assert [f.verdict for f in schema] == [Verdict.PASS]
+
+
+@pytest.mark.parametrize("bad_type", [1, None, {"a": 1}, ["file"]])
+def test_a_non_string_component_type_does_not_crash_the_parser(tmp_path, bad_type):
+    """A schema-invalid document must still reach the schema gate.
+
+    Selecting file components on `type` introduced a `.lower()` on whatever the
+    document put there. Crashing in the parser replaces a clear schema failure
+    with a traceback, and the hostile-input path exists precisely so that does
+    not happen.
+    """
+    sbom = _cdx(tmp_path, {"type": bad_type, "name": "x"},
+                {"type": "file", "name": "src/a.c"})
+    assert [f.name for f in sbom.files] == ["src/a.c"]
 
 
 # ---- identity ----------------------------------------------------------------

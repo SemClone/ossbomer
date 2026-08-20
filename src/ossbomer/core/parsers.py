@@ -11,7 +11,7 @@ import json
 from datetime import timezone
 from typing import Any
 
-from .detect import Detection, detect_file
+from .detect import Detection, detect_file, spdx3_id, spdx3_type
 from .ir import Component, Document, File, Sbom
 from .licenses import (
     SOURCE_EXPRESSION,
@@ -196,8 +196,12 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     # `type` is "file". Mirrored into `files` rather than moved out of
     # `components`, so file rules can reach them without changing what every
     # existing component rule sees.
+    # `str()` before `.lower()`: a schema-invalid document can carry a non-string
+    # `type`, and the parser has to survive long enough for the schema gate to
+    # report that. Crashing here would replace a clear schema failure with a
+    # traceback.
     files = [_cdx_file(c) for c in data.get("components", []) or []
-             if (c.get("type") or "").lower() == "file"]
+             if str(c.get("type") or "").lower() == "file"]
 
     deps: dict[str, list[str]] = {}
     for d in data.get("dependencies", []) or []:
@@ -391,31 +395,6 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
 
 # ---- SPDX 3.0 (best-effort JSON-LD) ------------------------------------------
 
-def _spdx3_type(node: dict[str, Any]) -> str:
-    """A 3.0 element's class name, however the document spells it.
-
-    JSON-LD carries the same graph in more than one shape. Compacted against the
-    SPDX context a node reads `"type": "software_File"`; expanded, it reads
-    `"@type": ".../File"`. Only the first was matched, so an expanded document
-    parsed to nothing at all -- no components, no files, no creation info -- and
-    reported as an SBOM that declared nothing rather than one we could not read.
-
-    The namespace prefix is trimmed either way, so `software_File`, `File` and a
-    full IRI all answer `File`.
-    """
-    raw = node.get("type") or node.get("@type") or ""
-    if isinstance(raw, list):  # expanded JSON-LD allows multiple types
-        raw = raw[0] if raw else ""
-    name = str(raw).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
-    return name.split(":")[-1].split("_")[-1]
-
-
-def _spdx3_id(node: dict[str, Any]) -> str | None:
-    """A 3.0 element's identifier, compacted (`spdxId`) or expanded (`@id`)."""
-    value = node.get("spdxId") or node.get("@id")
-    return str(value) if value is not None else None
-
-
 def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     """Digests from a 3.0 element's `verifiedUsing` integrity methods.
 
@@ -432,9 +411,14 @@ def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
     for entry in node.get("verifiedUsing", []) or []:
         if not isinstance(entry, dict):
             continue
-        if _spdx3_type(entry) != "Hash":
+        if spdx3_type(entry) != "Hash":
             continue
-        algorithm = str(entry.get("algorithm", "")).split("_")[-1].strip().lower()
+        # Only the `hashAlgorithm_` prefix comes off. Splitting on every
+        # underscore turned `sha3_256` into `256`, which is a different
+        # algorithm and one `hash_algorithm_in_set` would not recognise.
+        algorithm = str(entry.get("algorithm", "")).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+        algorithm = algorithm.removeprefix("hashAlgorithm_")
+        algorithm = algorithm.strip().lower()
         value = entry.get("hashValue")
         if algorithm and value:
             hashes[algorithm] = str(value)
@@ -451,8 +435,8 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     for node in graph:
         if not isinstance(node, dict):
             continue
-        ntype = _spdx3_type(node)
-        node_id = _spdx3_id(node)
+        ntype = spdx3_type(node)
+        node_id = spdx3_id(node)
         if ntype == "File":
             # Mirrored, not moved: these already reach `components` below, and
             # taking them out would change what every existing component rule

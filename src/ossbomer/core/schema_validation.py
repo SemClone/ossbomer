@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .detect import Detection, detect_file
+from .detect import Detection, detect_file, spdx3_type
 
 
 @dataclass
@@ -116,7 +116,7 @@ def _validate_spdx_3x(path: str, det: Detection) -> SchemaResult:
     if not isinstance(graph, list) or not graph:
         errors.append("SPDX 3.0 JSON-LD document missing a non-empty @graph")
     else:
-        types = {str(node.get("type", "")).split(":")[-1] for node in graph if isinstance(node, dict)}
+        types = {spdx3_type(node) for node in graph if isinstance(node, dict)}
         if "SpdxDocument" not in types and "CreationInfo" not in types:
             errors.append("SPDX 3.0 @graph contains no SpdxDocument/CreationInfo element")
     return SchemaResult(not errors, det.sbom_format, det.spec_version, det.encoding,

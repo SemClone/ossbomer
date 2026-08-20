@@ -32,6 +32,31 @@ class DetectionError(ValueError):
     """Raised when the file is not a recognizable SPDX or CycloneDX document."""
 
 
+def spdx3_type(node: dict) -> str:
+    """A 3.0 element's class name, however the JSON-LD spells it.
+
+    One graph has more than one valid shape. Compacted against the SPDX context
+    a node reads `"type": "software_File"`; expanded, it reads `"@type"` with a
+    full IRI, possibly as a list. Namespace and profile prefixes are trimmed
+    either way, so `software_File`, `File` and the full IRI all answer `File`.
+
+    Lives here rather than in the parser because the schema gate needs the same
+    answer: reading a shape the gate then rejects would report a document we
+    understood perfectly well as unreadable.
+    """
+    raw = node.get("type") or node.get("@type") or ""
+    if isinstance(raw, list):  # expanded JSON-LD allows multiple types
+        raw = raw[0] if raw else ""
+    name = str(raw).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+    return name.split(":")[-1].split("_")[-1]
+
+
+def spdx3_id(node: dict) -> str | None:
+    """A 3.0 element's identifier, compacted (`spdxId`) or expanded (`@id`)."""
+    value = node.get("spdxId") or node.get("@id")
+    return str(value) if value is not None else None
+
+
 @dataclass(frozen=True)
 class Detection:
     sbom_format: str  # "spdx" | "cyclonedx"
