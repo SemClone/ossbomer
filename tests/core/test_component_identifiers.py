@@ -282,11 +282,27 @@ def test_the_grammar_is_checked_not_just_the_shape():
     assert _check("cpe_wellformed", r"cpe:2.3:a:vendor\!:prod:1.0:*:*:*:*:*:*:*")
 
 
-def test_the_uri_binding_is_case_insensitive():
-    """§6.1 writes the scheme and part case-insensitively. An a/h/o-only check
-    rejected `cpe:/A:vendor:prod`, which is a valid name -- a false FAIL."""
-    assert _check("cpe_wellformed", "cpe:/A:vendor:prod")
-    assert _check("cpe_wellformed", "cpe:/a:vendor:prod")
+@pytest.mark.parametrize("value", [
+    "cpe:/a:vendor:prod",
+    "cpe:/A:vendor:prod",
+    "CPE:/a:vendor:prod",
+    "cPe:/A:vendor:prod",
+])
+def test_the_uri_binding_is_case_insensitive(value):
+    """URI schemes are case-insensitive (RFC 3986 §3.1), and §6.1 writes `part`
+    in either case. Rejecting a validly-spelled name is a false FAIL."""
+    assert _check("cpe_wellformed", value)
+    # And the dispatcher must agree with the validator: a case-sensitive prefix
+    # test sent these to the "neither a purl nor a CPE" branch, so the rule
+    # reported no identifier at all for a component that had one.
+    assert _check("component_identifier", value)
+
+
+def test_the_formatted_string_binding_stays_lower_case():
+    """The 2.3 binding is a string rather than a URI, so scheme
+    case-insensitivity does not apply and §6.2.2 writes it lower case."""
+    assert _check("cpe_wellformed", "cpe:2.3:a:v:p:1:*:*:*:*:*:*:*")
+    assert not _check("cpe_wellformed", "CPE:2.3:a:v:p:1:*:*:*:*:*:*:*")
 
 
 def test_the_part_check_does_not_depend_on_the_binding():

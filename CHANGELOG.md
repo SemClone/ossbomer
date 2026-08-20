@@ -46,15 +46,18 @@ follow [Semantic Versioning](https://semver.org/).
   first one carrying a real value; null tokens such as `NOASSERTION` are skipped
   rather than shadowing a usable value behind them. `field` is unchanged and
   remains the single-attribute form.
-- `cpe_wellformed`, checking CPE names structurally in both bindings: the CPE
-  2.3 formatted string of 13 components (NIST IR 7695 §6.2) and the CPE 2.2 URI
-  (§6.1). Delimiters are counted by backslash parity, since §6.2.2 escapes a
-  literal backslash as `\\`: an odd run before a colon escapes it, an even run
-  does not. `part` is
-  restricted to `a`/`h`/`o` in both, and 2.3 attributes must be non-empty, since
-  that binding writes ANY as `*` and NA as `-`. It checks shape, not existence —
-  whether a vendor and product name something real is not a question an SBOM
-  validator can answer.
+- `cpe_wellformed`, checking CPE names against NIST IR 7695's own regular
+  expressions for the two bindings: the 2.3 formatted string (§6.2.2) and the
+  2.2 URI (§6.1). Transcribed rather than paraphrased, because structural checks
+  written by hand admitted malformed names one class at a time — any `part`
+  value, then empty attributes, then attribute text containing spaces. A
+  component count and a `part` check are not the grammar. One documented
+  deviation: the published 2.2 expression pins the scheme's first letter to
+  lower case while allowing either case for the other two, so `CPE:/a:vendor` is
+  rejected as written; URI schemes are case-insensitive (RFC 3986 §3.1) and this
+  matches the whole scheme either way. It checks form, not existence — whether a
+  vendor and product name something real is not a question an SBOM validator can
+  answer.
 - `component_identifier`, for clauses accepting either identifier. Decides the
   form per value from its prefix, so a CPE is validated as a CPE and a purl as a
   purl.

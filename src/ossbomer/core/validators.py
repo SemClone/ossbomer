@@ -310,7 +310,13 @@ CPE23_RE = re.compile(
 # §6.1 (URI binding): `cpe:/` then up to seven percent-encoded components. The
 # scheme is case-insensitive and `part` may be upper case, which an a/h/o-only
 # check rejected -- `cpe:/A:vendor:prod` is a valid name.
-CPE22_RE = re.compile(r'c[pP][eE]:/[AHOaho]?(:[A-Za-z0-9._\-~%]*){0,6}')
+# One deliberate deviation from the published expression, which reads
+# `c[pP][eE]:/`: it pins the first letter to lower case while allowing either
+# case for the other two, so `CPE:/a:vendor` is rejected and `cPE:/a:vendor` is
+# not. URI schemes are case-insensitive (RFC 3986 §3.1) and the mixed classes
+# read as an incomplete attempt to say so, so the scheme matches either case
+# here. Rejecting a validly-spelled name would be a false FAIL.
+CPE22_RE = re.compile(r'cpe:/[AHOaho]?(:[A-Za-z0-9._\-~%]*){0,6}', re.IGNORECASE)
 
 
 def _split_unescaped(value: str, delimiter: str = ":") -> list[str]:
@@ -390,9 +396,15 @@ def _component_identifier(value: Any, ctx: ValidatorContext, params: dict) -> tu
         if not v:
             continue
         s = str(v).strip()
-        if s.startswith("cpe:"):
+        # Lower-cased for routing only. `_cpe_wellformed` accepts a
+        # case-insensitive scheme for the 2.2 URI, so a case-sensitive test here
+        # sent `CPE:/a:vendor:prod` to the "neither" branch and reported it as
+        # not an identifier at all, while the validator it never reached would
+        # have passed it.
+        lowered = s.lower()
+        if lowered.startswith("cpe:"):
             ok, msg = _cpe_wellformed(v, ctx, params)
-        elif s.startswith("pkg:"):
+        elif lowered.startswith("pkg:"):
             ok, msg = _purl_wellformed(v, ctx, params)
         else:
             return False, (f"{v!r} is neither a purl (expected a 'pkg:' prefix) "
