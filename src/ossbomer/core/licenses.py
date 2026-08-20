@@ -89,6 +89,9 @@ SEPARATOR_REWRITES: tuple[tuple[re.Pattern, str], ...] = (
 #   "Apache"        -- 1.0, 1.1 and 2.0 all exist
 #
 # Those stay unresolved on purpose, and a profile reports them as such.
+# FALLBACK, pending SemClone/ospac#89 -- see the note on AMBIGUOUS_NAMES below.
+# ospac already supplies 1471 mappings; these 25 are the folk spellings it does
+# not carry yet. Adding to this table is the wrong direction: add to ospac.
 ALIASES: dict[str, str] = {
     # Apache 2.0: version is explicit in every spelling here.
     "apache 2": "Apache-2.0",
@@ -132,6 +135,8 @@ ALIASES: dict[str, str] = {
 #
 # Everything else in the family ("BSD", "Apache", "LGPL", ...) is already
 # rejected by the parser; this list exists for the exceptions to that.
+# FALLBACK, pending SemClone/ospac#89. Which names are too vague to resolve is a
+# property of the licence landscape rather than of this tool.
 NEVER_RESOLVE: set[str] = {"gpl", "gpl+"}
 
 # Where operators and aliases can be extended without editing this package.
@@ -222,7 +227,12 @@ def _ospac_aliases() -> dict[str, str]:
 
     ospac is the source of truth for license metadata across these tools: it
     regenerates its records from SPDX releases, so mappings that derive from
-    SPDX belong there rather than being re-curated in every consumer.
+    SPDX belong there rather than being re-curated in every consumer. A
+    hand-held list is not wrong when written -- it is wrong two SPDX releases
+    later, quietly, and differently in each consumer keeping its own copy.
+
+    The built-in tables above are a fallback for when ospac is absent, tracked
+    for removal in SemClone/ospac#89.
 
     Two ways to get them, tried in order:
 
@@ -397,6 +407,13 @@ def reset_caches() -> None:
     normalize.cache_clear()
 
 
+# FALLBACK, pending SemClone/ospac#89. This is licence data, so it belongs in
+# ospac, which regenerates from SPDX releases. Held here only until ospac
+# exposes it, because a hand-maintained list is not wrong on the day it is
+# written -- it is wrong two SPDX releases later, quietly, and differently in
+# every consumer holding its own copy. Shrink this to nothing as ospac covers
+# it; do not grow it.
+#
 # Prose spellings that name a licence family and version without saying which
 # SPDX identifier applies. The GNU licences are the whole of this problem: the
 # difference between `-only` and `-or-later` is the copyright holder's grant,

@@ -29,6 +29,14 @@ follow [Semantic Versioning](https://semver.org/).
   grant and the licence's own name does not carry it. Resolving either way
   would assert something the document never said.
 
+  The list of which names are ambiguous is licence data, so it is marked as a
+  fallback pending [ospac#89](https://github.com/SemClone/ospac/issues/89) — as
+  are the curated alias and refuse-to-resolve tables beside it. ospac
+  regenerates from SPDX releases and already supplies 1471 of the 1505 mappings
+  in use; the 34 held here are the ones it does not carry yet. A hand-held list
+  is not wrong when written, it is wrong two SPDX releases later, quietly, and
+  differently in every consumer keeping its own copy.
+
   Both remain unresolved, but the finding now says which distinction is
   missing — "it does not say whether later versions are permitted, so it could
   be LGPL-2.1-only or LGPL-2.1-or-later" — because that sends a reader to a
