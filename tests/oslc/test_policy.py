@@ -1,5 +1,6 @@
 """ospac-backed license policy: use cases, expression semantics, failure modes."""
 import sys
+from importlib.metadata import version as metadata_version
 
 import pytest
 
@@ -11,6 +12,17 @@ from ossbomer.oslc import policy as policy_mod
 from ossbomer.oslc.policy import LicensePolicy, OspacUnavailable
 
 ospac = pytest.importorskip("ospac", reason="ospac is the optional [oslc] extra")
+
+# Which ospac is installed decides some answers below, and the interpreter
+# decides which ospac you can install: from 1.4.3 it requires Python >= 3.10, so
+# a 3.9 environment resolves to 1.2.3 at the latest. The same license and use
+# case can therefore get different verdicts on 3.9 and on 3.10+, which is worth
+# knowing about rather than papering over -- ossbomer still declares
+# `requires-python = ">=3.9"`.
+OSPAC_VERSION_STR = metadata_version("ospac")
+OSPAC_VERSION = tuple(
+    int(part) for part in OSPAC_VERSION_STR.split(".")[:2] if part.isdigit()
+)
 
 
 def _sbom(*licenses):
@@ -27,17 +39,54 @@ def _profile(use_case, rules=None, engine="ospac"):
 
 # ---- use cases ---------------------------------------------------------------
 # The whole point of the layer: the same license is not the same answer
-# everywhere. Internal use is not distribution, and network use triggers AGPL
-# obligations that shipping does not.
+# everywhere. Internal use is not distribution, and what a strong copyleft
+# obligation attaches to differs by how the work reaches its user.
+#
+# These assert ospac's policy, not ours -- the dev extra installs the real engine
+# so CI exercises it rather than a stub. That means a policy change upstream
+# lands here as a failing test, which is the intended alarm and not a defect. If
+# one of these fails after an ospac release, check the new policy before changing
+# the assertion.
 
 def test_gpl_denied_when_distributed_but_allowed_internally():
     assert LicensePolicy(use_case="mobile").decide("GPL-3.0-only").denied is True
     assert LicensePolicy(use_case="internal").decide("GPL-3.0-only").denied is False
 
 
-def test_agpl_denied_for_a_network_service_but_not_for_a_shipped_app():
+def test_agpl_is_denied_for_a_network_service_and_allowed_internally():
+    """The part that holds across every ospac release we can install.
+
+    Network use triggers AGPL §13; internal use conveys nothing to anyone, so
+    there is no one to offer source to.
+    """
     assert LicensePolicy(use_case="saas").decide("AGPL-3.0-only").denied is True
-    assert LicensePolicy(use_case="mobile").decide("AGPL-3.0-only").denied is False
+    assert LicensePolicy(use_case="internal").decide("AGPL-3.0-only").denied is False
+
+
+@pytest.mark.skipif(OSPAC_VERSION < (1, 6),
+                    reason=f"ospac {OSPAC_VERSION_STR} predates the mobile AGPL rule")
+def test_agpl_is_denied_for_a_shipped_app_from_ospac_1_6():
+    """ospac permitted AGPL for `mobile` until 1.6.0 and denies it from there on.
+
+    A tightening, not a loosening: app store terms are widely read as
+    incompatible with the source-offer obligation. Version-gated rather than
+    flipped outright because the two are both live -- see the note above on 3.9.
+    """
+    assert LicensePolicy(use_case="mobile").decide("AGPL-3.0-only").denied is True
+
+
+@pytest.mark.skipif(OSPAC_VERSION < (1, 6),
+                    reason=f"ospac {OSPAC_VERSION_STR} predates the mobile AGPL rule")
+def test_the_two_denials_do_not_share_a_rationale():
+    """Same verdict, different reason. Worth pinning: a policy that denied
+    everything with one message would pass the test above while telling the
+    reader nothing about why, and the remediation differs -- a network boundary
+    does not help a shipped binary.
+    """
+    shipped = LicensePolicy(use_case="mobile").decide("AGPL-3.0-only")
+    served = LicensePolicy(use_case="saas").decide("AGPL-3.0-only")
+    assert shipped.message and served.message
+    assert shipped.message != served.message
 
 
 def test_permissive_is_approved_everywhere():
