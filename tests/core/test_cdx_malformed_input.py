@@ -1,4 +1,4 @@
-"""The CycloneDX mapper must survive a malformed document, not raise on it.
+"""A malformed document must survive to the schema gate, not raise on the way.
 
 The schema promises a shape; the document is not obliged to keep that promise.
 This parser is not what reports the breach -- `validate_schema` is, and it only
@@ -23,6 +23,7 @@ import json
 
 import pytest
 
+from ossbomer.core.detect import DetectionError
 from ossbomer.core.parsers import parse_file
 from ossbomer.core.runner import run
 from ossbomer.core.schema_validation import validate_schema
@@ -177,6 +178,65 @@ def test_a_malformed_document_still_fails_schema_validation(tmp_path):
     (result,) = run(path, ["cisa-2026-min"])
     schema = [f for f in result.findings if f.rule_id == "schema-valid"]
     assert [f.verdict.value for f in schema] == ["FAIL"]
+
+
+# ---- SPDX 3.0 ----------------------------------------------------------------
+# The 3.0 reader is hand-rolled like the CycloneDX one and owes the same
+# contract. It is best-effort about *shapes* it understands; that is not licence
+# to raise on shapes it does not.
+
+SPDX3_VALID = {
+    "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+    "@graph": [
+        {"type": "CreationInfo", "spdxId": "_:ci", "specVersion": "3.0.1",
+         "created": "2026-01-01T00:00:00Z", "createdBy": ["_:agent"]},
+        {"type": "SpdxDocument", "spdxId": "https://example.com/d", "name": "d"},
+        {"type": "software_Package", "spdxId": "https://example.com/p", "name": "p",
+         "software_packageVersion": "1.0"},
+        {"type": "software_File", "spdxId": "https://example.com/f", "name": "a.c",
+         "verifiedUsing": [{"type": "Hash", "algorithm": "sha256",
+                            "hashValue": "a" * 64}]},
+    ],
+}
+
+SPDX3_PATHS = [
+    ("@graph",),
+    ("@graph", 0),
+    ("@graph", 0, "type"),
+    ("@graph", 0, "spdxId"),
+    ("@graph", 0, "created"),
+    ("@graph", 0, "createdBy"),
+    ("@graph", 2, "name"),
+    ("@graph", 2, "software_packageVersion"),
+    ("@graph", 3, "name"),
+    ("@graph", 3, "verifiedUsing"),
+    ("@graph", 3, "verifiedUsing", 0),
+    ("@graph", 3, "verifiedUsing", 0, "algorithm"),
+    ("@graph", 3, "verifiedUsing", 0, "hashValue"),
+]
+
+
+def _spdx3_mutate(path, value):
+    doc = copy.deepcopy(SPDX3_VALID)
+    target = doc
+    for step in path[:-1]:
+        target = target[step]
+    target[path[-1]] = value
+    return doc
+
+
+@pytest.mark.parametrize("path,value", list(itertools.product(SPDX3_PATHS, JUNK)),
+                         ids=lambda x: ".".join(map(str, x)) if isinstance(x, tuple) else repr(x))
+def test_spdx3_parsing_survives_any_junk_at_any_field(tmp_path, path, value):
+    doc = _spdx3_mutate(path, value)
+    path_str = _write(tmp_path, doc, name="m.spdx.jsonld")
+    try:
+        sbom = parse_file(path_str)
+    except DetectionError:
+        # Mutating the marker detection keys on can make the document
+        # unrecognisable, which is a refusal rather than a crash.
+        return
+    assert sbom.sbom_format == "spdx"
 
 
 def test_a_document_that_is_not_an_object_does_not_crash(tmp_path):

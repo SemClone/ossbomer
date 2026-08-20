@@ -575,7 +575,10 @@ def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
 def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
-    graph = data.get("@graph", []) if isinstance(data, dict) else []
+    # Same contract as the CycloneDX mapper: the document is not obliged to keep
+    # the schema's promises, and the gate that reports the breach only runs if
+    # parsing survives to call it.
+    graph = _seq(_obj(data).get("@graph"))
     components: list[Component] = []
     files: list[File] = []
     document = Document(raw=data if isinstance(data, dict) else {})
@@ -616,7 +619,8 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
             document.namespace = node_id
         elif "CreationInfo" in ntypes:
             document.timestamp = node.get("created")
-            document.creators = list(node.get("createdBy", []) or [])
+            document.creators = [c for c in (_text(x) for x in _seq(node.get("createdBy")))
+                                 if c is not None]
     return Sbom(
         sbom_format="spdx", spec_version=det.spec_version, encoding="json",
         document=document, components=components, files=files, source_path=path,
