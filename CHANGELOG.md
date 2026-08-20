@@ -85,6 +85,13 @@ follow [Semantic Versioning](https://semver.org/).
   `AttributeError` instead of reaching the schema gate, which is what exists to
   report it. Introduced with the file inventory, which selects components by
   `type`; a traceback is a worse answer than a schema failure.
+- A CycloneDX hash entry whose `alg` is not a string — `null`, an object, or a
+  non-object entry entirely — crashed the parser the same way. That one predates
+  the file inventory and applied to every component; the inventory made it
+  newly reachable through `metadata.component`, which nothing had inspected
+  before. Both mappers now share one tolerant reader, so a document cannot crash
+  on the copy that was not fixed. A valid digest alongside a malformed one is
+  still kept.
 
 ### Changed
 - A rule naming an unknown `scope` is refused when the profile loads, rather

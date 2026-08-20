@@ -187,6 +187,35 @@ def test_a_file_component_with_no_hashes_is_kept_and_left_empty(tmp_path):
     assert entry.hashes == {}
 
 
+@pytest.mark.parametrize("bad_hash", [
+    {"alg": None, "content": "x"},      # `alg` is required and a string
+    {"alg": {"x": 1}, "content": "y"},
+    {"alg": "SHA-256"},                 # no content
+    "not-an-object",
+    42,
+])
+def test_a_malformed_hash_entry_does_not_crash_the_parser(tmp_path, bad_hash):
+    """A schema-invalid document must reach the schema gate, which is what
+    reports it. Raising in the parser turns a reportable bad SBOM into an exit-2
+    traceback, and the same comprehension had been written twice -- fixing one
+    copy would have left the other crashing.
+    """
+    sbom = _cdx(tmp_path,
+                {"type": "file", "name": "src/a.c", "hashes": [bad_hash]},
+                {"type": "library", "name": "lib", "hashes": [bad_hash]})
+    assert sbom.files[0].hashes == {}
+    assert sbom.components[1].hashes == {}
+
+
+def test_a_good_hash_survives_alongside_a_malformed_one(tmp_path):
+    """Tolerating junk must not mean discarding what was valid."""
+    sbom = _cdx(tmp_path, {"type": "file", "name": "src/a.c", "hashes": [
+        {"alg": None, "content": "x"},
+        {"alg": "SHA-256", "content": SHA256},
+    ]})
+    assert sbom.files[0].hashes == {"sha-256": SHA256}
+
+
 # ---- SPDX 3.0 ----------------------------------------------------------------
 
 def _spdx3(tmp_path, *nodes):

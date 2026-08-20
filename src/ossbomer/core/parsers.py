@@ -77,6 +77,29 @@ def _cdx_licenses(entry: dict[str, Any]) -> list[LicenseDeclaration]:
     return out
 
 
+def _cdx_hashes(entry: dict[str, Any]) -> dict[str, str]:
+    """A CycloneDX component's digests, tolerating a document that is malformed.
+
+    `alg` is required and a string per the schema, so a document that puts
+    `null` or an object there is invalid -- but the parser is not what reports
+    that. `validate_schema` is, and it only runs if parsing gets far enough to
+    call it. Raising here turned a reportable bad SBOM into an exit-2 traceback,
+    and the entry that most often carries junk is the one nobody validated by
+    hand.
+
+    Shared with the file mapper: the same comprehension was written twice, and
+    fixing one copy would have left a document crashing on the other.
+    """
+    hashes: dict[str, str] = {}
+    for item in entry.get("hashes", []) or []:
+        if not isinstance(item, dict):
+            continue
+        alg, content = item.get("alg"), item.get("content")
+        if isinstance(alg, str) and content is not None:
+            hashes[alg.lower()] = str(content)
+    return hashes
+
+
 def _cdx_file(entry: dict[str, Any]) -> File:
     """A CycloneDX `type: file` component, as a file entry.
 
@@ -87,8 +110,7 @@ def _cdx_file(entry: dict[str, Any]) -> File:
     return File(
         spdx_id=entry.get("bom-ref"),
         name=entry.get("name"),
-        hashes={h["alg"].lower(): h["content"] for h in entry.get("hashes", []) or []
-                if "alg" in h and "content" in h},
+        hashes=_cdx_hashes(entry),
         licenses=[d.effective for d in declarations if d.effective],
         copyright=entry.get("copyright"),
         raw=entry,
@@ -110,8 +132,7 @@ def _cdx_component(entry: dict[str, Any]) -> Component:
         publisher=entry.get("publisher"),
         licenses=[d.effective for d in declarations if d.effective],
         license_declarations=declarations,
-        hashes={h["alg"].lower(): h["content"] for h in entry.get("hashes", []) or []
-                if "alg" in h and "content" in h},
+        hashes=_cdx_hashes(entry),
         external_refs=entry.get("externalReferences", []) or [],
         properties={p["name"]: p.get("value") for p in entry.get("properties", []) or []
                     if "name" in p},
