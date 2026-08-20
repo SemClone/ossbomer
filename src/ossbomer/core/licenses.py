@@ -323,22 +323,66 @@ def _overlay_sources() -> list[dict[str, Any]]:
 
 
 @lru_cache(maxsize=1)
-def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...]]:
-    """Built-in tables merged with every overlay. Overlays win on conflict."""
+def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
+                       dict[str, str], set[str]]:
+    """Built-in tables merged with every overlay. Overlays win on conflict.
+
+    Returns the exact tables and their descriptive-key views. The views are
+    built here, in the same layering pass, rather than derived afterwards:
+    re-keying the merged table later loses which layer each entry came from, so
+    two spellings collapsing to one key would be resolved by whichever sorted
+    first instead of by which layer declared it. That made an adopter's
+    override apply to `"apache software license, version 2.0"` and not to `"The
+    Apache Software License, Version 2.0"` -- the same licence, two
+    identifiers, decided by an article.
+    """
+    aliases: dict[str, str] = {}
+    descriptive: dict[str, str] = {}
+
+    def add(key: str, value: str) -> None:
+        squashed = _WHITESPACE.sub(" ", str(key)).strip().lower()
+        aliases[squashed] = str(value)
+        descriptive[descriptive_key(squashed)] = str(value)
+
     # Layered lowest to highest: ospac's official names, then the curated folk
-    # spellings here (which SPDX never publishes), then adopter overlays.
-    aliases = dict(_ospac_aliases())
-    aliases.update({k.lower(): v for k, v in ALIASES.items()})
+    # spellings here (which SPDX never publishes), then adopter overlays. Later
+    # layers overwrite, in both views.
+    for key, value in _ospac_aliases().items():
+        add(key, value)
+    for key, value in ALIASES.items():
+        add(key, value)
+
     never = set(NEVER_RESOLVE)
     separators = list(SEPARATOR_REWRITES)
+    overridden: dict[str, str] = {}
     for overlay in _overlay_sources():
         for key, value in (overlay.get("aliases") or {}).items():
-            aliases[_WHITESPACE.sub(" ", str(key)).strip().lower()] = str(value)
+            add(key, value)
+            overridden[descriptive_key(str(key))] = str(value)
         for key in overlay.get("never_resolve") or []:
             never.add(_WHITESPACE.sub(" ", str(key)).strip().lower())
         for pattern, operator in (overlay.get("separators") or {}).items():
             separators.append((re.compile(str(pattern)), str(operator)))
-    return aliases, never, tuple(separators)
+
+    # An override reaches every spelling of the name it overrides, including
+    # ones that carry a shipped alias of their own. Without this an adopter who
+    # remapped "apache software license, version 2.0" still got the shipped
+    # `Apache-2.0` for "Apache Software License 2.0" -- the same name, differing
+    # only by the punctuation `descriptive_key` exists to ignore. "Overlays win
+    # on conflict" has to mean the conflict, not one spelling of it.
+    if overridden:
+        for key in list(aliases):
+            replacement = overridden.get(descriptive_key(key))
+            if replacement is not None:
+                aliases[key] = replacement
+
+    # A denylist entry has to refuse the spellings the descriptive step would
+    # otherwise reach. Refusing only the exact string let `"The Eclipse Public
+    # License 2.0"` resolve while `"Eclipse Public License 2.0"` was refused,
+    # which is the failure the denylist exists to prevent.
+    never_descriptive = {descriptive_key(n) for n in never}
+
+    return aliases, never, tuple(separators), descriptive, never_descriptive
 
 
 def reset_caches() -> None:
@@ -441,24 +485,6 @@ def _canonical_expression(text: str) -> str | None:
     return info.normalized_expression or text
 
 
-@lru_cache(maxsize=1)
-def _descriptive_aliases_cached(items: tuple[tuple[str, str], ...]) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for key, value in items:
-        out.setdefault(descriptive_key(key), value)
-    return out
-
-
-def _descriptive_aliases(aliases: dict[str, str]) -> dict[str, str]:
-    """The alias table re-keyed by descriptive form.
-
-    `setdefault`, so where two alias spellings collapse to the same key the
-    first wins rather than the last -- a table edit should not silently change
-    which mapping applies.
-    """
-    return _descriptive_aliases_cached(tuple(sorted(aliases.items())))
-
-
 @lru_cache(maxsize=4096)
 def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     """Resolve one declared license to SPDX, recording how.
@@ -471,7 +497,7 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
         return LicenseDeclaration(raw=text, source=source, normalized=None,
                                   method=DECLARED_UNKNOWN)
 
-    aliases, never, separators = _tables()
+    aliases, never, separators, descriptive_aliases, never_descriptive = _tables()
     squashed_early = _WHITESPACE.sub(" ", text).lower()
 
     # 0. Refuse anything on the denylist before anything else gets a chance to
@@ -519,19 +545,26 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     if alias:
         return LicenseDeclaration(text, source, alias, VIA_ALIAS)
 
-    # 7. The same aliases, matched through the prose spelling: a leading "The",
-    #    ", Version 2.0" and stray commas removed from both sides. This is
-    #    normalisation rather than inference -- the alias still has to be there.
     descriptive = descriptive_key(text)
-    alias = aliases.get(descriptive) or _descriptive_aliases(aliases).get(descriptive)
-    if alias:
-        return LicenseDeclaration(text, source, alias, VIA_DESCRIPTIVE)
 
-    # 8. Names a licence, but not precisely enough to be an identifier. Reported
-    #    as its own thing so the reader is told which distinction is missing
-    #    rather than that the name was not recognised.
+    # 7. Refused by the denylist through its prose spelling. Checked before the
+    #    lookup below, not after: a denylist that only stops the exact string is
+    #    not a denylist.
+    if descriptive in never_descriptive:
+        return LicenseDeclaration(text, source, None, UNRESOLVED)
+
+    # 8. Ambiguity is decided before resolution, so a data update that happened
+    #    to add a bare "GNU General Public License 2.0" alias could not quietly
+    #    turn a reported ambiguity into a confident -only/-or-later pick.
     if descriptive in AMBIGUOUS_NAMES:
         return LicenseDeclaration(text, source, None, AMBIGUOUS)
 
-    # 9. Not resolvable without guessing, so it is reported rather than guessed.
+    # 9. The same aliases, matched through the prose spelling: a leading "The",
+    #    ", Version 2.0" and stray commas removed from both sides. This is
+    #    normalisation rather than inference -- the alias still has to be there.
+    alias = descriptive_aliases.get(descriptive)
+    if alias:
+        return LicenseDeclaration(text, source, alias, VIA_DESCRIPTIVE)
+
+    # 10. Not resolvable without guessing, so it is reported rather than guessed.
     return LicenseDeclaration(text, source, None, UNRESOLVED)
