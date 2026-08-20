@@ -289,19 +289,43 @@ def _purl_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[b
     return True, ""
 
 
+# NIST IR 7695 Appendix A, transcribed. These are the specification's own regular
+# expressions for the two bindings, not a paraphrase of them.
+#
+# Hand-rolled structural checks kept passing malformed names one class at a time:
+# first any `part` value, then empty attributes, then attribute text containing
+# spaces. Each fix closed one hole and left the rest, because a component count
+# and a part check are not the grammar. These are.
+#
+# §6.2.2 (formatted string): `part` is a/h/o or the logical values `*` (ANY) and
+# `-` (NA); each attribute is either a logical value or printable text whose
+# special characters are backslash-escaped; `language` is an RFC 5646 tag.
+CPE23_RE = re.compile(
+    r'cpe:2\.3:[aho*\-]'
+    r'(:(((\?*|\*?)([a-zA-Z0-9\-._]|(\\[\\*?!"#$%&\'()+,/:;<=>@\[\]^`{|}~]))+(\?*|\*?))|[*\-])){5}'
+    r'(:(([a-zA-Z]{2,3}(-([a-zA-Z]{2}|[0-9]{3}))?)|[*\-]))'
+    r'(:(((\?*|\*?)([a-zA-Z0-9\-._]|(\\[\\*?!"#$%&\'()+,/:;<=>@\[\]^`{|}~]))+(\?*|\*?))|[*\-])){4}'
+)
+
+# §6.1 (URI binding): `cpe:/` then up to seven percent-encoded components. The
+# scheme is case-insensitive and `part` may be upper case, which an a/h/o-only
+# check rejected -- `cpe:/A:vendor:prod` is a valid name.
+CPE22_RE = re.compile(r'c[pP][eE]:/[AHOaho]?(:[A-Za-z0-9._\-~%]*){0,6}')
+
+
 def _split_unescaped(value: str, delimiter: str = ":") -> list[str]:
     """Split on delimiters that are not escaped, counting backslashes by parity.
 
-    NIST IR 7695 §6.2.2 escapes a special character in an attribute with a
-    backslash, and a literal backslash as `\\`. So whether a delimiter is data
-    depends on the *length* of the backslash run before it: odd escapes it, even
-    does not, because those backslashes escape each other.
+    §6.2.2 escapes a special character in an attribute with a backslash, and a
+    literal backslash as a pair. So whether a delimiter is data depends on the
+    *length* of the backslash run before it: odd escapes it, even does not,
+    because those backslashes escape each other. A one-character negative
+    lookbehind gets the even case wrong, and Python's `re` cannot express a
+    variable-length lookbehind.
 
-    A one-character negative lookbehind gets that wrong in the even case, reading
-    the delimiter after `\\` as data and undercounting the components. Python's
-    `re` cannot express a variable-length lookbehind, so this scans instead. The
-    failure direction mattered: `cpe:2.3:a:ven\\:prod:...` is a valid name for an
-    attribute ending in a backslash, and it was being reported as malformed.
+    Used for diagnostics rather than validation: the grammar above decides
+    well-formedness, and this says how many components the author actually wrote
+    when that count is what went wrong.
     """
     parts: list[str] = []
     current: list[str] = []
@@ -322,26 +346,11 @@ def _split_unescaped(value: str, delimiter: str = ":") -> list[str]:
     return parts
 
 
-# NIST IR 7695 §5.3.2 restricts a WFN's `part` to `a` (application), `h`
-# (hardware) or `o` (operating system). The 2.3 formatted-string binding (§6.2)
-# additionally permits the logical values `*` (ANY) and `-` (NA) in any
-# attribute, which the 2.2 URI binding (§6.1) spells as an empty component.
-# Checking the count alone let `cpe:2.3:x:...` through while `cpe:/x:...` was
-# correctly rejected, so the same name passed or failed depending on its binding.
-CPE23_PARTS = frozenset({"a", "h", "o", "*", "-"})
-CPE22_PARTS = frozenset({"a", "h", "o", ""})
-
-
 @register("cpe_wellformed")
 def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, str]:
-    """Both CPE bindings, checked structurally rather than against a dictionary.
+    """Both CPE bindings, against the grammar in NIST IR 7695.
 
-    CPE 2.3 (NIST IR 7695 §6.2) is a formatted string of exactly 13
-    colon-separated components: the `cpe` prefix, the version `2.3`, and 11
-    attributes. CPE 2.2 (NIST IR 7695 §6.1) is a URI binding, `cpe:/` followed by
-    up to 7 colon-separated attributes.
-
-    This checks shape, not existence: whether the vendor and product name a real
+    This checks form, not existence: whether the vendor and product name a real
     product is not something an SBOM validator can answer, and a rule that
     pretended otherwise would fail correct documents.
     """
@@ -350,30 +359,19 @@ def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bo
             continue
         s = str(v).strip()
         if s.startswith("cpe:2.3:"):
-            # 13 parts total. Escaped colons are data inside an attribute, not
-            # separators, so they must not be counted.
-            parts = _split_unescaped(s)
-            if len(parts) != 13:
-                return False, (f"{v!r} is not a well-formed CPE 2.3 name: "
-                               f"expected 13 colon-separated components, found {len(parts)}")
-            if parts[2] not in CPE23_PARTS:
-                return False, (f"{v!r} is not a well-formed CPE 2.3 name: part must be "
-                               f"one of a/h/o (or '*'/'-'), found {parts[2]!r}")
-            # §6.2 binds every attribute to a non-empty value: ANY is written
-            # `*` and NA is written `-`. An empty component is the 2.2 URI
-            # convention, so `cpe:2.3:a:vendor:prod:1.0:::::::` is the right
-            # number of components in the wrong binding, not a 2.3 name.
-            if any(not attr for attr in parts[2:]):
-                return False, (f"{v!r} is not a well-formed CPE 2.3 name: attributes "
-                               f"cannot be empty (ANY is '*', NA is '-')")
-        elif s.startswith("cpe:/"):
-            parts = s[len("cpe:/"):].split(":")
-            if len(parts) > 7:
-                return False, (f"{v!r} is not a well-formed CPE 2.2 URI: "
-                               f"expected at most 7 components, found {len(parts)}")
-            if parts and parts[0] not in CPE22_PARTS:
-                return False, (f"{v!r} is not a well-formed CPE 2.2 URI: "
-                               f"part must be one of a/h/o, found {parts[0]!r}")
+            if not CPE23_RE.fullmatch(s):
+                # The count is the usual mistake, and "found 12" is a more useful
+                # thing to be told than "does not match the grammar".
+                found = len(_split_unescaped(s))
+                if found != 13:
+                    return False, (f"{v!r} is not a well-formed CPE 2.3 name: expected 13 "
+                                   f"colon-separated components, found {found}")
+                return False, (f"{v!r} is not a well-formed CPE 2.3 name "
+                               f"(NIST IR 7695 §6.2.2)")
+        elif s.lower().startswith("cpe:/"):
+            if not CPE22_RE.fullmatch(s):
+                return False, (f"{v!r} is not a well-formed CPE 2.2 URI "
+                               f"(NIST IR 7695 §6.1)")
         else:
             return False, f"{v!r} is not a CPE name (expected a 'cpe:2.3:' or 'cpe:/' prefix)"
     return True, ""

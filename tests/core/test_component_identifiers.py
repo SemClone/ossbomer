@@ -181,6 +181,9 @@ def _check(name, value):
     "cpe:2.3:h:vendor:device:1.0:*:*:*:*:*:*:*",
     "cpe:2.3:*:vendor:prod:1.0:*:*:*:*:*:*:*",      # ANY, §6.2
     "cpe:2.3:-:vendor:prod:1.0:*:*:*:*:*:*:*",      # NA, §6.2
+    "cpe:2.3:a:vendor:prod:1.0:*:*:en-US:*:*:*:*",  # language is an RFC 5646 tag
+    "cpe:/A:vendor:prod",                           # §6.1 is case-insensitive
+    "cpe:/",                                        # every component ANY
 ])
 def test_cpe_wellformed_accepts(value):
     assert _check("cpe_wellformed", value)
@@ -195,6 +198,9 @@ def test_cpe_wellformed_accepts(value):
     "cpe:2.3::vendor:prod:1.0:*:*:*:*:*:*:*",      # empty part is not ANY here; §6.2 spells that '*'
     "cpe:2.3:a:vendor:prod:1.0:::::::",            # 13 components, but empty ones: 2.2's convention
     "cpe:2.3:a::prod:1.0:*:*:*:*:*:*:*",           # one empty attribute is enough
+    "cpe:2.3:a:vendor name:prod:1.0:*:*:*:*:*:*:*",  # a space must be escaped
+    "cpe:/a:vendor name:prod",                       # likewise in the URI binding
+    "cpe:2.3:a:vendor:prod:1.0:*:*:zz-QQ-XX:*:*:*:*",  # not an RFC 5646 tag
     PURL,
     "vendor:prod:1.0",
 ])
@@ -258,6 +264,29 @@ def test_component_identifier_rejects_malformed(value):
     # An empty value is absence, which `present` reports; this validator only
     # judges the shape of values that are there.
     assert _check("component_identifier", value) == (value == "")
+
+
+def test_the_grammar_is_checked_not_just_the_shape():
+    """A component count and a `part` check are not the grammar.
+
+    Structural checks passed malformed names one class at a time -- any part
+    value, then empty attributes, then attribute text with spaces in it. The
+    validator matches NIST IR 7695's own expressions so the whole class is
+    closed rather than the last example someone thought of.
+    """
+    assert not _check("cpe_wellformed", "cpe:2.3:a:vendor name:prod:1.0:*:*:*:*:*:*:*")
+    # A space is not escapable either: §6.2.2's escape set is punctuation, and a
+    # space is not in it. `\ ` is as malformed as a bare one.
+    assert not _check("cpe_wellformed", r"cpe:2.3:a:vendor\ name:prod:1.0:*:*:*:*:*:*:*")
+    # What escaping is for: a special character that *is* in the set.
+    assert _check("cpe_wellformed", r"cpe:2.3:a:vendor\!:prod:1.0:*:*:*:*:*:*:*")
+
+
+def test_the_uri_binding_is_case_insensitive():
+    """§6.1 writes the scheme and part case-insensitively. An a/h/o-only check
+    rejected `cpe:/A:vendor:prod`, which is a valid name -- a false FAIL."""
+    assert _check("cpe_wellformed", "cpe:/A:vendor:prod")
+    assert _check("cpe_wellformed", "cpe:/a:vendor:prod")
 
 
 def test_the_part_check_does_not_depend_on_the_binding():
