@@ -6,7 +6,67 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-20
+
 ### Added
+- `omb-m-26-05`, encoding OMB Memorandum M-26-05, *Adopting a Risk-based
+  Approach to Software and Hardware Security* (2026-01-23). The memorandum
+  rescinds M-22-18 and M-23-16 and replaces their government-wide floor with
+  agency discretion, so it mandates no SBOM: agencies "may also choose to adopt
+  contractual terms" requiring a producer to supply one on request. A PASS
+  therefore does not mean "M-26-05 compliant", because no such state exists. It
+  means an SBOM produced under a term an agency chose to adopt carries the
+  fields the memorandum pointed that agency at. The obligation lives in the
+  contract.
+
+  The memorandum names no data field, so the profile composes rather than
+  transcribes, as `fedramp-sbom` does. It extends `cisa-2025-min` and adds no
+  rules of its own; findings report `cisa-*` and `ntia-*` rule ids citing the
+  documents the fields actually come from. Inventing `omb-*` ids would assert
+  clauses that a two-page memorandum does not contain, which is the defect that
+  got `eu-cra-annex-vii` withdrawn.
+
+  It extends the 2025 draft rather than `cisa-2026-min` because M-26-05 cites
+  "CISA, 2025 Minimum Elements for a Software Bill of Materials (SBOM)
+  (published in draft form on Aug. 22, 2025)" — one document, by date, in a list
+  the memorandum introduces as material agencies "can reference ... for
+  additional information and options". That is a dated citation, not the open
+  delegation EO 14028 §4(f) makes and which lets `fedramp-sbom` track whatever
+  CISA publishes next. CISA replaced that draft on 2026-07-29 and the memorandum
+  has not been reissued; following the drift silently would fail a procurement
+  written against M-26-05 as issued on fields its own reference document never
+  listed. Use `cisa-2026-min` directly if your contractual term names the 2026
+  document.
+
+  Footnote 1's instruction that a cloud platform SBOM cover "the runtime
+  production environment" is deliberately not encoded. It constrains what the
+  SBOM is *of*, not what fields it carries, and nothing in an SBOM file
+  reliably declares its subject.
+
+- The memorandum itself, at
+  `docs/sources/documents/omb-m-26-05-risk-based-approach-software-hardware-security.pdf`,
+  redistributable as a US Government work under 17 U.S.C. §105, with its
+  SHA-256 recorded in the source index alongside every other cited document.
+- `fields` on a rule, for a requirement a document may satisfy in more than one
+  way. Lists IR attributes in precedence order and hands the validators the
+  first one carrying a real value; null tokens such as `NOASSERTION` are skipped
+  rather than shadowing a usable value behind them. `field` is unchanged and
+  remains the single-attribute form.
+- `cpe_wellformed`, checking CPE names against NIST IR 7695's own regular
+  expressions for the two bindings: the 2.3 formatted string (§6.2.2) and the
+  2.2 URI (§6.1). Transcribed rather than paraphrased, because structural checks
+  written by hand admitted malformed names one class at a time — any `part`
+  value, then empty attributes, then attribute text containing spaces. A
+  component count and a `part` check are not the grammar. One documented
+  deviation: the published 2.2 expression pins the scheme's first letter to
+  lower case while allowing either case for the other two, so `CPE:/a:vendor` is
+  rejected as written; URI schemes are case-insensitive (RFC 3986 §3.1) and this
+  matches the whole scheme either way. It checks form, not existence — whether a
+  vendor and product name something real is not a question an SBOM validator can
+  answer.
+- `component_identifier`, for clauses accepting either identifier. Decides the
+  form per value from its prefix, so a CPE is validated as a CPE and a purl as a
+  purl.
 - A file inventory in the IR, and a `file` rule scope to target it. The IR
   modelled documents and components and nothing else, so an SBOM's file entries
   and the checksums on them were discarded at parse time: SPDX 2.3 §8.4 makes
@@ -50,7 +110,46 @@ follow [Semantic Versioning](https://semver.org/).
   This is the parser and engine work; rules follow per profile, where a clause
   actually calls for one.
 
+### Changed
+- A rule naming an unknown `scope` is refused when the profile loads, rather
+  than silently producing no findings. Previously a typo made the rule vanish,
+  which reads as a clean pass; `file` and `files` are one keystroke apart. This
+  can turn a private overlay that loaded before into a load error, which is the
+  point — it was never running the rule it appeared to declare.
+
 ### Fixed
+- Components identified only by a CPE were reported as having no identifier, and
+  on SPDX input a CPE was never read at all. Two defects that hid each other.
+
+  The SPDX parser walked `external_references` looking for `purl` and stopped
+  there, so `Component.cpe` was `None` for every SPDX document in every
+  encoding, while the CycloneDX path populated it. The same component expressed
+  in the two formats produced different IR. SPDX 2.3 §7.11.2 carries CPEs in
+  that same list under the `cpe22Type` and `cpe23Type` reference types; both are
+  now read, and a package may declare a purl and a CPE without either lookup
+  ending the other.
+
+  `bsi-component-identifier` matched on `field: purl` while citing BSI
+  TR-03183-2 §5.2.4, "other unique identifiers (CPE or purl), if it exists". A
+  component carrying a valid CPE and no purl failed a requirement it met, and
+  the rule's own `purl_wellformed` would have rejected the CPE had it reached
+  it. A check narrower than the clause beside it is the defect this catalog
+  exists to avoid.
+
+  Only SPDX documents whose packages declare CPEs change verdict, and only for
+  that rule: a CPE-only component moves from a spurious WARN to PASS. Nothing in
+  the test corpus was affected, since no fixture declared a CPE — which is how
+  this survived.
+
+- `MUST_WHERE_AVAILABLE` failed rules whose field holds a container rather than a
+  string. The severity exists to excuse a document that never declared the data,
+  and availability was decided with an inline null test that counted an empty
+  list or dict as declared. `cisa-component-hash` therefore reported FAIL for a
+  component carrying no hashes at all — the exact case "where available" is
+  there to permit — and `cisa-2025-min`, plus anything extending it, scored it
+  as a violation. Absent now reports WARN; a hash that is present and outside
+  the required set still fails. Predates the identifier work above and was found
+  while reviewing it.
 - `present` passed a mapping field that was empty. `_as_list` had no branch for
   a mapping, so `hashes: {}` fell through to the catch-all, came back as `[{}]`
   and read as populated — a component or file carrying no hashes at all
@@ -135,109 +234,6 @@ follow [Semantic Versioning](https://semver.org/).
   before. Both mappers now share one tolerant reader, so a document cannot crash
   on the copy that was not fixed. A valid digest alongside a malformed one is
   still kept.
-
-### Changed
-- A rule naming an unknown `scope` is refused when the profile loads, rather
-  than silently producing no findings. Previously a typo made the rule vanish,
-  which reads as a clean pass; `file` and `files` are one keystroke apart. This
-  can turn a private overlay that loaded before into a load error, which is the
-  point — it was never running the rule it appeared to declare.
-
-## [2.3.0] - 2026-08-20
-
-### Added
-- `omb-m-26-05`, encoding OMB Memorandum M-26-05, *Adopting a Risk-based
-  Approach to Software and Hardware Security* (2026-01-23). The memorandum
-  rescinds M-22-18 and M-23-16 and replaces their government-wide floor with
-  agency discretion, so it mandates no SBOM: agencies "may also choose to adopt
-  contractual terms" requiring a producer to supply one on request. A PASS
-  therefore does not mean "M-26-05 compliant", because no such state exists. It
-  means an SBOM produced under a term an agency chose to adopt carries the
-  fields the memorandum pointed that agency at. The obligation lives in the
-  contract.
-
-  The memorandum names no data field, so the profile composes rather than
-  transcribes, as `fedramp-sbom` does. It extends `cisa-2025-min` and adds no
-  rules of its own; findings report `cisa-*` and `ntia-*` rule ids citing the
-  documents the fields actually come from. Inventing `omb-*` ids would assert
-  clauses that a two-page memorandum does not contain, which is the defect that
-  got `eu-cra-annex-vii` withdrawn.
-
-  It extends the 2025 draft rather than `cisa-2026-min` because M-26-05 cites
-  "CISA, 2025 Minimum Elements for a Software Bill of Materials (SBOM)
-  (published in draft form on Aug. 22, 2025)" — one document, by date, in a list
-  the memorandum introduces as material agencies "can reference ... for
-  additional information and options". That is a dated citation, not the open
-  delegation EO 14028 §4(f) makes and which lets `fedramp-sbom` track whatever
-  CISA publishes next. CISA replaced that draft on 2026-07-29 and the memorandum
-  has not been reissued; following the drift silently would fail a procurement
-  written against M-26-05 as issued on fields its own reference document never
-  listed. Use `cisa-2026-min` directly if your contractual term names the 2026
-  document.
-
-  Footnote 1's instruction that a cloud platform SBOM cover "the runtime
-  production environment" is deliberately not encoded. It constrains what the
-  SBOM is *of*, not what fields it carries, and nothing in an SBOM file
-  reliably declares its subject.
-
-- The memorandum itself, at
-  `docs/sources/documents/omb-m-26-05-risk-based-approach-software-hardware-security.pdf`,
-  redistributable as a US Government work under 17 U.S.C. §105, with its
-  SHA-256 recorded in the source index alongside every other cited document.
-- `fields` on a rule, for a requirement a document may satisfy in more than one
-  way. Lists IR attributes in precedence order and hands the validators the
-  first one carrying a real value; null tokens such as `NOASSERTION` are skipped
-  rather than shadowing a usable value behind them. `field` is unchanged and
-  remains the single-attribute form.
-- `cpe_wellformed`, checking CPE names against NIST IR 7695's own regular
-  expressions for the two bindings: the 2.3 formatted string (§6.2.2) and the
-  2.2 URI (§6.1). Transcribed rather than paraphrased, because structural checks
-  written by hand admitted malformed names one class at a time — any `part`
-  value, then empty attributes, then attribute text containing spaces. A
-  component count and a `part` check are not the grammar. One documented
-  deviation: the published 2.2 expression pins the scheme's first letter to
-  lower case while allowing either case for the other two, so `CPE:/a:vendor` is
-  rejected as written; URI schemes are case-insensitive (RFC 3986 §3.1) and this
-  matches the whole scheme either way. It checks form, not existence — whether a
-  vendor and product name something real is not a question an SBOM validator can
-  answer.
-- `component_identifier`, for clauses accepting either identifier. Decides the
-  form per value from its prefix, so a CPE is validated as a CPE and a purl as a
-  purl.
-
-### Fixed
-- Components identified only by a CPE were reported as having no identifier, and
-  on SPDX input a CPE was never read at all. Two defects that hid each other.
-
-  The SPDX parser walked `external_references` looking for `purl` and stopped
-  there, so `Component.cpe` was `None` for every SPDX document in every
-  encoding, while the CycloneDX path populated it. The same component expressed
-  in the two formats produced different IR. SPDX 2.3 §7.11.2 carries CPEs in
-  that same list under the `cpe22Type` and `cpe23Type` reference types; both are
-  now read, and a package may declare a purl and a CPE without either lookup
-  ending the other.
-
-  `bsi-component-identifier` matched on `field: purl` while citing BSI
-  TR-03183-2 §5.2.4, "other unique identifiers (CPE or purl), if it exists". A
-  component carrying a valid CPE and no purl failed a requirement it met, and
-  the rule's own `purl_wellformed` would have rejected the CPE had it reached
-  it. A check narrower than the clause beside it is the defect this catalog
-  exists to avoid.
-
-  Only SPDX documents whose packages declare CPEs change verdict, and only for
-  that rule: a CPE-only component moves from a spurious WARN to PASS. Nothing in
-  the test corpus was affected, since no fixture declared a CPE — which is how
-  this survived.
-
-- `MUST_WHERE_AVAILABLE` failed rules whose field holds a container rather than a
-  string. The severity exists to excuse a document that never declared the data,
-  and availability was decided with an inline null test that counted an empty
-  list or dict as declared. `cisa-component-hash` therefore reported FAIL for a
-  component carrying no hashes at all — the exact case "where available" is
-  there to permit — and `cisa-2025-min`, plus anything extending it, scored it
-  as a violation. Absent now reports WARN; a hash that is present and outside
-  the required set still fails. Predates the identifier work above and was found
-  while reviewing it.
 
 ## [2.2.2] - 2026-08-02
 
