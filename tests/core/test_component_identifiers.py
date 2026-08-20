@@ -298,6 +298,25 @@ def test_the_uri_binding_is_case_insensitive(value):
     assert _check("component_identifier", value)
 
 
+def test_percent_signs_are_left_to_the_published_grammar():
+    r"""Deliberate, not an oversight. Do not "fix" this without changing the
+    citation above it.
+
+    NIST IR 7695's expression for the URI binding reads `(:[A-Za-z0-9._\-~%]*)`,
+    admitting `%` as an ordinary character rather than requiring it to open a
+    `%[0-9A-Fa-f]{2}` pair. So `cpe:/a:ven%ZZ:prod` matches the grammar this
+    validator implements, even though §6.1's prose describes components as
+    percent-encoded.
+
+    Enforcing the stricter reading here would make the validator stricter than
+    the specification it cites, which is the invention this validator was
+    rewritten to remove. If it is worth checking, it belongs in its own rule with
+    its own citation.
+    """
+    assert _check("cpe_wellformed", "cpe:/a:ven%ZZ:prod")
+    assert _check("cpe_wellformed", "cpe:/a:ven%20dor:prod")
+
+
 def test_the_formatted_string_binding_stays_lower_case():
     """The 2.3 binding is a string rather than a URI, so scheme
     case-insensitivity does not apply and §6.2.2 writes it lower case."""
