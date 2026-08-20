@@ -500,10 +500,17 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     aliases, never, separators, descriptive_aliases, never_descriptive = _tables()
     squashed_early = _WHITESPACE.sub(" ", text).lower()
 
+    descriptive = descriptive_key(squashed_early)
+
     # 0. Refuse anything on the denylist before anything else gets a chance to
     #    resolve it. Bare "GPL" is accepted upstream as GPL-1.0-or-later, and
     #    letting that through would be a confident wrong answer.
-    if squashed_early in never:
+    #
+    #    Both spellings, and both here rather than later: a denylist checked
+    #    after the alias lookups is not a denylist. `never_resolve: ["MIT
+    #    License"]` refused that string and then resolved "The MIT License"
+    #    through a shipped alias further down.
+    if squashed_early in never or descriptive in never_descriptive:
         return LicenseDeclaration(text, source, None, UNRESOLVED)
 
     # 1. Already an SPDX expression or identifier. Covers the common case and,
@@ -513,6 +520,18 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     canonical = _canonical_expression(text)
     if canonical:
         return LicenseDeclaration(text, source, canonical, VIA_EXPRESSION)
+
+    # 1b. Named, but not precisely enough to be an identifier. Above every
+    #     lookup, because any of them can answer with a confident id: an overlay
+    #     alias for "gnu lesser general public license 2.1" resolved it to
+    #     LGPL-2.1-only under one spelling while another spelling reported the
+    #     ambiguity, which is the same document getting two answers.
+    #
+    #     Below step 1 on purpose. Ambiguity is a property of the prose name,
+    #     not of the licence, so `LGPL-2.1-only` and the deprecated `LGPL-2.1`
+    #     still resolve through SPDX's own mapping.
+    if descriptive in AMBIGUOUS_NAMES:
+        return LicenseDeclaration(text, source, None, AMBIGUOUS)
 
     # 2. The same string with ecosystem separators translated to SPDX operators.
     rewritten = text
@@ -545,26 +564,12 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     if alias:
         return LicenseDeclaration(text, source, alias, VIA_ALIAS)
 
-    descriptive = descriptive_key(text)
-
-    # 7. Refused by the denylist through its prose spelling. Checked before the
-    #    lookup below, not after: a denylist that only stops the exact string is
-    #    not a denylist.
-    if descriptive in never_descriptive:
-        return LicenseDeclaration(text, source, None, UNRESOLVED)
-
-    # 8. Ambiguity is decided before resolution, so a data update that happened
-    #    to add a bare "GNU General Public License 2.0" alias could not quietly
-    #    turn a reported ambiguity into a confident -only/-or-later pick.
-    if descriptive in AMBIGUOUS_NAMES:
-        return LicenseDeclaration(text, source, None, AMBIGUOUS)
-
-    # 9. The same aliases, matched through the prose spelling: a leading "The",
+    # 7. The same aliases, matched through the prose spelling: a leading "The",
     #    ", Version 2.0" and stray commas removed from both sides. This is
     #    normalisation rather than inference -- the alias still has to be there.
     alias = descriptive_aliases.get(descriptive)
     if alias:
         return LicenseDeclaration(text, source, alias, VIA_DESCRIPTIVE)
 
-    # 10. Not resolvable without guessing, so it is reported rather than guessed.
+    # 8. Not resolvable without guessing, so it is reported rather than guessed.
     return LicenseDeclaration(text, source, None, UNRESOLVED)

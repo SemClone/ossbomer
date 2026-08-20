@@ -283,14 +283,55 @@ def test_no_ambiguous_name_is_also_a_resolvable_alias():
     assert not overlap, f"named as ambiguous and resolvable at once: {overlap}"
 
 
-def test_ambiguity_wins_over_a_conflicting_alias(overlay):
-    """The ordering that makes the guard above non-load-bearing.
+@pytest.mark.parametrize("raw", [
+    # The spelling that hits the overlay's key exactly, so the alias lookup can
+    # answer before any guard does. The first version of this test used only the
+    # spelling below, which misses that path -- it passed without the guard
+    # being in the right place, which is a test passing for the wrong reason.
+    "GNU Lesser General Public License 2.1",
+    "gnu lesser general public license 2.1",
+    "GNU Lesser General Public License, Version 2.1",
+    "The GNU Lesser General Public License, Version 2.1",
+])
+def test_ambiguity_wins_over_a_conflicting_alias(overlay, raw):
+    """No lookup may answer an ambiguous name with a confident identifier.
 
-    Even if an alias claimed one of these names, the ambiguity is reported
-    rather than a confident `-only`/`-or-later` pick invented on the document's
-    behalf.
+    An alias -- shipped or adopter-declared -- that claims one of these names
+    would otherwise resolve it under the spelling that matches the alias key and
+    report the ambiguity under every other spelling: the same document, two
+    answers, decided by punctuation.
     """
     overlay('aliases:\n  "gnu lesser general public license 2.1": "LGPL-2.1-only"\n')
-    declaration = normalize("GNU Lesser General Public License, Version 2.1", SOURCE_NAME)
+    declaration = normalize(raw, SOURCE_NAME)
     assert declaration.normalized is None
     assert declaration.ambiguous is True
+
+
+@pytest.mark.parametrize("raw", [
+    "MIT License",
+    "The MIT License",     # a shipped alias, which the denylist must still beat
+    "the mit license",
+    "The MIT License, Version 1.0",
+])
+def test_a_denylist_beats_a_shipped_alias(overlay, raw):
+    """The denylist has to outrank every table, not just sit above the one added
+    last. `never_resolve: ["MIT License"]` refused that string and then resolved
+    "The MIT License" through a curated alias further down the pipeline.
+    """
+    overlay('never_resolve: ["MIT License"]\n')
+    assert normalize(raw, SOURCE_NAME).normalized is None
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("LGPL-2.1-only", "LGPL-2.1-only"),
+    ("LGPL-2.1-or-later", "LGPL-2.1-or-later"),
+    ("LGPL-2.1", "LGPL-2.1-only"),      # deprecated, mapped forward by SPDX itself
+    ("GPL-3.0-or-later", "GPL-3.0-or-later"),
+])
+def test_an_identifier_outranks_the_ambiguity_guard(raw, expected):
+    """Ambiguity is a property of the prose name, not of the licence.
+
+    The guard sits below the expression step precisely so a document that says
+    which identifier it means is answered rather than second-guessed.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized == expected
