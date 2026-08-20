@@ -52,6 +52,43 @@ def parse_file(path: str, detection: Detection | None = None) -> Sbom:
 
 # ---- CycloneDX ---------------------------------------------------------------
 
+def _obj(value: Any) -> dict[str, Any]:
+    """A mapping, or an empty one where the document put something else.
+
+    The schema promises a shape; the document is not obliged to keep that
+    promise, and this parser is not what reports the breach. `validate_schema`
+    is, and it only runs if parsing survives to call it. Raising on a malformed
+    field replaces a usable "your SBOM is invalid because X" with a traceback
+    and exit 2 -- on precisely the input a validator exists to be handed.
+
+    So the mapper reads every container through this or :func:`_seq`. Not to
+    tolerate bad SBOMs, but to stay alive long enough to report them.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def _seq(value: Any) -> list[Any]:
+    """A list, or an empty one where the document put something else."""
+    return value if isinstance(value, list) else []
+
+
+def _text(value: Any) -> str | None:
+    """A scalar as text, or None where the document put a container.
+
+    The IR types identifiers and names as `str | None`, and everything
+    downstream believes that: `bom_ref` and `purl` are put into a set by
+    `dependency_completeness`, so a list arriving there raised *during rule
+    evaluation*, past the parser and past the schema gate both.
+
+    A number is kept rather than dropped. `version: 1.0` written as a float is a
+    real generator mistake and the value is still the version; a list or a
+    mapping carries no scalar to recover.
+    """
+    if value is None or isinstance(value, (dict, list)):
+        return None
+    return str(value)
+
+
 def _cdx_licenses(entry: dict[str, Any]) -> list[LicenseDeclaration]:
     """Read all three CycloneDX license slots, keeping track of which is which.
 
@@ -61,7 +98,7 @@ def _cdx_licenses(entry: dict[str, Any]) -> list[LicenseDeclaration]:
     syntax and a well-formed expression in the `name` slot passed silently.
     """
     out: list[LicenseDeclaration] = []
-    for lic in entry.get("licenses", []) or []:
+    for lic in _seq(entry.get("licenses")):
         if not isinstance(lic, dict):
             continue
         if lic.get("expression"):
@@ -91,7 +128,7 @@ def _cdx_hashes(entry: dict[str, Any]) -> dict[str, str]:
     fixing one copy would have left a document crashing on the other.
     """
     hashes: dict[str, str] = {}
-    for item in entry.get("hashes", []) or []:
+    for item in _seq(entry.get("hashes")):
         if not isinstance(item, dict):
             continue
         alg, content = item.get("alg"), item.get("content")
@@ -111,45 +148,47 @@ def _cdx_file(entry: dict[str, Any]) -> File:
     """
     declarations = _cdx_licenses(entry)
     return File(
-        spdx_id=entry.get("bom-ref"),
-        name=entry.get("name"),
+        spdx_id=_text(entry.get("bom-ref")),
+        name=_text(entry.get("name")),
         hashes=_cdx_hashes(entry),
         licenses=[d.effective for d in declarations if d.effective],
-        copyright=entry.get("copyright"),
+        copyright=_text(entry.get("copyright")),
         raw=entry,
     )
 
 
 def _cdx_component(entry: dict[str, Any]) -> Component:
-    supplier = entry.get("supplier") or {}
+    supplier = _obj(entry.get("supplier"))
     declarations = _cdx_licenses(entry)
     return Component(
-        bom_ref=entry.get("bom-ref"),
-        name=entry.get("name"),
-        version=entry.get("version"),
-        type=entry.get("type"),
-        purl=entry.get("purl"),
-        cpe=entry.get("cpe"),
-        supplier=supplier.get("name") if isinstance(supplier, dict) else None,
-        author=entry.get("author"),
-        publisher=entry.get("publisher"),
+        bom_ref=_text(entry.get("bom-ref")),
+        name=_text(entry.get("name")),
+        version=_text(entry.get("version")),
+        type=_text(entry.get("type")),
+        purl=_text(entry.get("purl")),
+        cpe=_text(entry.get("cpe")),
+        supplier=_text(supplier.get("name")),
+        author=_text(entry.get("author")),
+        publisher=_text(entry.get("publisher")),
         licenses=[d.effective for d in declarations if d.effective],
         license_declarations=declarations,
         hashes=_cdx_hashes(entry),
-        external_refs=entry.get("externalReferences", []) or [],
-        properties={p["name"]: p.get("value") for p in entry.get("properties", []) or []
-                    if "name" in p},
+        external_refs=_seq(entry.get("externalReferences")),
+        properties={p["name"]: p.get("value") for p in _seq(entry.get("properties"))
+                    if isinstance(p, dict) and "name" in p},
         raw=entry,
     )
 
 
 def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sbom:
-    meta = data.get("metadata", {}) or {}
+    meta = _obj(data.get("metadata"))
     tools = meta.get("tools", {})
     tool_names: list[str] = []
     tool_versions: list[str] = []
     if isinstance(tools, dict):  # 1.5+ shape: {"components":[...], "services":[...]}
-        for t in tools.get("components", []) or []:
+        for t in _seq(tools.get("components")):
+            if not isinstance(t, dict):
+                continue
             tool_names.append(t.get("name", ""))
             if t.get("version"):
                 tool_versions.append(str(t["version"]))
@@ -166,7 +205,7 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     # `metadata.tools`, so it has to be read separately -- a document whose author
     # is a person or an organization has no tool entry at all.
     author_names: list[str] = []
-    for a in meta.get("authors", []) or []:
+    for a in _seq(meta.get("authors")):
         if isinstance(a, dict):
             name = a.get("name") or a.get("email")
             if name:
@@ -176,19 +215,19 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
 
     # 1.6 renamed `metadata.manufacture` to `metadata.manufacturer`; accept both so
     # the mapping holds across the whole 1.3-1.6 range we claim to support.
-    manufacturer = meta.get("manufacturer") or meta.get("manufacture")
-    if isinstance(manufacturer, dict) and manufacturer.get("name"):
+    manufacturer = _obj(meta.get("manufacturer") or meta.get("manufacture"))
+    if manufacturer.get("name"):
         author_names.append(str(manufacturer["name"]))
 
     tool_names = [t for t in tool_names if t]
 
-    doc_supplier = (meta.get("supplier") or {}).get("name") if isinstance(meta.get("supplier"), dict) else None
+    doc_supplier = _obj(meta.get("supplier")).get("name")
 
     # `metadata.lifecycles` (1.5+) is CycloneDX's native expression of the phase
     # the SBOM was produced in. Entries are either a predefined `phase` or a
     # free-text `name`, and both satisfy CISA 2026 SBOM Generation Context.
     lifecycles: list[str] = []
-    for lc in meta.get("lifecycles", []) or []:
+    for lc in _seq(meta.get("lifecycles")):
         if isinstance(lc, dict):
             value = lc.get("phase") or lc.get("name")
             if value:
@@ -197,7 +236,7 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
             lifecycles.append(str(lc))
 
     document = Document(
-        name=(meta.get("component") or {}).get("name"),
+        name=_obj(meta.get("component")).get("name"),
         namespace=data.get("serialNumber"),
         timestamp=meta.get("timestamp"),
         tools=tool_names,
@@ -215,7 +254,7 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
         raw=meta,
     )
 
-    components = [_cdx_component(c) for c in data.get("components", []) or []]
+    components = [_cdx_component(c) for c in _seq(data.get("components")) if isinstance(c, dict)]
     # CycloneDX has no separate files section: a file is a component whose
     # `type` is "file". Mirrored into `files` rather than moved out of
     # `components`, so file rules can reach them without changing what every
@@ -261,9 +300,9 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
             found.extend(_walk(entry.get("components")))
         return found
 
-    root = (data.get("metadata") or {}).get("component") or {}
+    root = _obj(_obj(data.get("metadata")).get("component"))
     entries = _walk(data.get("components"))
-    if isinstance(root, dict):
+    if root:
         # The subject may carry subcomponents of its own, and a BOM describing an
         # application often puts its files there. Missing them reported "no file
         # inventory" for a document declaring checksummed files.
@@ -282,7 +321,7 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     # The copy already in the tree wins. A generator that repeats the subject
     # tends to give the fuller record there, and taking the root's version threw
     # away digests the document had declared.
-    if isinstance(root, dict) and _is_file(root):
+    if _is_file(root):
         ref = root.get("bom-ref")
         already = any(e.get("bom-ref") == ref for e in entries if _is_file(e)) if ref \
             else any(e.get("name") == root.get("name") for e in entries if _is_file(e))
@@ -290,10 +329,16 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
             files.insert(0, _cdx_file(root))
 
     deps: dict[str, list[str]] = {}
-    for d in data.get("dependencies", []) or []:
-        ref = d.get("ref")
+    for d in _seq(data.get("dependencies")):
+        if not isinstance(d, dict):
+            continue
+        # A ref is a string, and it becomes a dict key here and a set element
+        # in `dependency_completeness`. Anything unhashable arriving there raised
+        # past both the parser and the schema gate.
+        ref = _text(d.get("ref"))
         if ref is not None:
-            deps[ref] = list(d.get("dependsOn", []) or [])
+            deps[ref] = [r for r in (_text(x) for x in _seq(d.get("dependsOn")))
+                         if r is not None]
 
     return Sbom(
         sbom_format="cyclonedx", spec_version=det.spec_version, encoding="json",
@@ -530,7 +575,10 @@ def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
 def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
-    graph = data.get("@graph", []) if isinstance(data, dict) else []
+    # Same contract as the CycloneDX mapper: the document is not obliged to keep
+    # the schema's promises, and the gate that reports the breach only runs if
+    # parsing survives to call it.
+    graph = _seq(_obj(data).get("@graph"))
     components: list[Component] = []
     files: list[File] = []
     document = Document(raw=data if isinstance(data, dict) else {})
@@ -571,7 +619,8 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
             document.namespace = node_id
         elif "CreationInfo" in ntypes:
             document.timestamp = node.get("created")
-            document.creators = list(node.get("createdBy", []) or [])
+            document.creators = [c for c in (_text(x) for x in _seq(node.get("createdBy")))
+                                 if c is not None]
     return Sbom(
         sbom_format="spdx", spec_version=det.spec_version, encoding="json",
         document=document, components=components, files=files, source_path=path,

@@ -101,6 +101,33 @@ follow [Semantic Versioning](https://semver.org/).
   `AttributeError` instead of reaching the schema gate, which is what exists to
   report it. Introduced with the file inventory, which selects components by
   `type`; a traceback is a worse answer than a schema failure.
+- The CycloneDX mapper raised on a malformed document instead of reaching the
+  schema gate. The schema promises a shape; the document is not obliged to keep
+  that promise, and this parser is not what reports the breach —
+  `validate_schema` is, and it only runs if parsing survives to call it. A junk
+  field therefore replaced a usable "your SBOM is invalid because X" with a
+  traceback and exit 2, on precisely the input a validator exists to be handed.
+
+  Ten sites crashed: `metadata`, `components` and `dependencies` at the top
+  level; `properties`, `licenses`, `hashes` and nested `components` within a
+  component; a `dependsOn` ref that was not a string, which became a dict key;
+  and `bom-ref` or `purl` holding a container, which raised inside
+  `dependency_completeness` — past the parser and past the schema gate both.
+  Every container is now read through one defensive helper, and every scalar the
+  IR types as text through another. A number is kept rather than dropped, since
+  `version: 1.0` written as a float is a real generator mistake and the value is
+  still the version.
+
+  The SPDX 3.0 reader owed the same contract and got the same pass: `@graph` and
+  `createdBy` both raised when they held something other than a list. It is
+  best-effort about shapes it understands, which is not licence to raise on
+  shapes it does not.
+
+  The test is generative rather than a list: 430 documents across both readers,
+  every field they read against ten wrong types, asserting only that parsing
+  returns and a verdict is reached. Enumeration looked finished long before it was — three
+  of these were fixed one at a time as review happened to reach them, and the
+  generative test found two more the moment it ran.
 - A CycloneDX hash entry whose `alg` is not a string — `null`, an object, or a
   non-object entry entirely — crashed the parser the same way. That one predates
   the file inventory and applied to every component; the inventory made it
