@@ -38,9 +38,11 @@ follow [Semantic Versioning](https://semver.org/).
   remains the single-attribute form.
 - `cpe_wellformed`, checking CPE names structurally in both bindings: the CPE
   2.3 formatted string of 13 components (NIST IR 7695 §6.2, with escaped colons
-  treated as data rather than separators) and the CPE 2.2 URI (§6.1). It checks
-  shape, not existence — whether a vendor and product name something real is not
-  a question an SBOM validator can answer.
+  treated as data rather than separators) and the CPE 2.2 URI (§6.1). `part` is
+  restricted to `a`/`h`/`o` in both, and 2.3 attributes must be non-empty, since
+  that binding writes ANY as `*` and NA as `-`. It checks shape, not existence —
+  whether a vendor and product name something real is not a question an SBOM
+  validator can answer.
 - `component_identifier`, for clauses accepting either identifier. Decides the
   form per value from its prefix, so a CPE is validated as a CPE and a purl as a
   purl.

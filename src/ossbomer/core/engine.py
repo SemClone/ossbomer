@@ -20,6 +20,24 @@ from .model import Category, Finding, Severity, Verdict
 from .profile import Profile, ProfileError, Rule
 
 
+def _has_value(value: Any) -> bool:
+    """Whether `value` is something a validator could act on.
+
+    Mirrors what `present` counts as data, so a lookup across alternatives and
+    the rule that follows it agree on what "absent" means. An empty container is
+    absence, and so is one holding nothing but SPDX null tokens: without this an
+    empty `licenses` list would satisfy the lookup below and shadow a populated
+    alternative listed after it.
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return not is_null_value(value)
+    if isinstance(value, (list, tuple, set, dict)):
+        return any(not (isinstance(v, str) and is_null_value(v)) for v in value)
+    return True
+
+
 def _extract_any(target: Any, fields: list[str]) -> Any:
     """First of `fields` that carries a real value, else the last one's value.
 
@@ -32,7 +50,7 @@ def _extract_any(target: Any, fields: list[str]) -> Any:
     value = None
     for name in fields:
         value = _extract(target, name)
-        if value is not None and not (isinstance(value, str) and is_null_value(value)):
+        if _has_value(value):
             return value
     return value
 

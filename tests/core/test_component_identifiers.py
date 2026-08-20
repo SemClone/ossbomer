@@ -12,6 +12,7 @@ never looks at it, and widening the rule finds nothing while SPDX never fills th
 field.
 """
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -192,6 +193,8 @@ def test_cpe_wellformed_accepts(value):
     "cpe:/a:1:2:3:4:5:6:7",                        # more than 7 components
     "cpe:2.3:x:vendor:prod:1.0:*:*:*:*:*:*:*",     # part must be a, h or o
     "cpe:2.3::vendor:prod:1.0:*:*:*:*:*:*:*",      # empty part is not ANY here; §6.2 spells that '*'
+    "cpe:2.3:a:vendor:prod:1.0:::::::",            # 13 components, but empty ones: 2.2's convention
+    "cpe:2.3:a::prod:1.0:*:*:*:*:*:*:*",           # one empty attribute is enough
     PURL,
     "vendor:prod:1.0",
 ])
@@ -266,6 +269,26 @@ def test_extract_any_falls_through_to_the_later_field():
 def test_extract_any_skips_null_tokens():
     """NOASSERTION is SPDX for "no value", so it must not shadow a real one."""
     assert _extract_any(_Target(purl="NOASSERTION", cpe=CPE23), ["purl", "cpe"]) == CPE23
+
+
+def test_extract_any_treats_an_empty_container_as_absent():
+    """Not every IR field is a string. `licenses` and `hashes` are containers, and
+    an empty one is absence -- which is how `present` reads it. Returning it as
+    though it carried data would let it shadow a populated alternative behind it,
+    and the rule would then report absence while a listed field was satisfied.
+    """
+    target = SimpleNamespace(licenses=[], purl=PURL)
+    assert _extract_any(target, ["licenses", "purl"]) == PURL
+
+
+def test_extract_any_treats_an_all_null_container_as_absent():
+    target = SimpleNamespace(licenses=["NOASSERTION"], purl=PURL)
+    assert _extract_any(target, ["licenses", "purl"]) == PURL
+
+
+def test_extract_any_keeps_a_populated_container():
+    target = SimpleNamespace(licenses=["MIT"], purl=PURL)
+    assert _extract_any(target, ["licenses", "purl"]) == ["MIT"]
 
 
 def test_extract_any_reports_absence_when_nothing_is_set():

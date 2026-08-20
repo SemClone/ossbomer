@@ -326,6 +326,13 @@ def _cpe_wellformed(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bo
             if parts[2] not in CPE23_PARTS:
                 return False, (f"{v!r} is not a well-formed CPE 2.3 name: part must be "
                                f"one of a/h/o (or '*'/'-'), found {parts[2]!r}")
+            # §6.2 binds every attribute to a non-empty value: ANY is written
+            # `*` and NA is written `-`. An empty component is the 2.2 URI
+            # convention, so `cpe:2.3:a:vendor:prod:1.0:::::::` is the right
+            # number of components in the wrong binding, not a 2.3 name.
+            if any(not attr for attr in parts[2:]):
+                return False, (f"{v!r} is not a well-formed CPE 2.3 name: attributes "
+                               f"cannot be empty (ANY is '*', NA is '-')")
         elif s.startswith("cpe:/"):
             parts = s[len("cpe:/"):].split(":")
             if len(parts) > 7:
