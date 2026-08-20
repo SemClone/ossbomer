@@ -6,6 +6,68 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-20
+
+### Added
+- `omb-m-26-05`, encoding OMB Memorandum M-26-05, *Adopting a Risk-based
+  Approach to Software and Hardware Security* (2026-01-23). The memorandum
+  rescinds M-22-18 and M-23-16 and replaces their government-wide floor with
+  agency discretion, so it mandates no SBOM: agencies "may also choose to adopt
+  contractual terms" requiring a producer to supply one on request. A PASS
+  therefore does not mean "M-26-05 compliant", because no such state exists. It
+  means an SBOM produced under a term an agency chose to adopt carries the
+  fields the memorandum pointed that agency at. The obligation lives in the
+  contract.
+
+  The memorandum names no data field, so the profile composes rather than
+  transcribes, as `fedramp-sbom` does. It extends `cisa-2025-min` and adds no
+  rules of its own; findings report `cisa-*` and `ntia-*` rule ids citing the
+  documents the fields actually come from. Inventing `omb-*` ids would assert
+  clauses that a two-page memorandum does not contain, which is the defect that
+  got `eu-cra-annex-vii` withdrawn.
+
+  It extends the 2025 draft rather than `cisa-2026-min` because M-26-05 cites
+  "CISA, 2025 Minimum Elements for a Software Bill of Materials (SBOM)
+  (published in draft form on Aug. 22, 2025)" — one document, by date, in a list
+  the memorandum introduces as material agencies "can reference ... for
+  additional information and options". That is a dated citation, not the open
+  delegation EO 14028 §4(f) makes and which lets `fedramp-sbom` track whatever
+  CISA publishes next. CISA replaced that draft on 2026-07-29 and the memorandum
+  has not been reissued; following the drift silently would fail a procurement
+  written against M-26-05 as issued on fields its own reference document never
+  listed. Use `cisa-2026-min` directly if your contractual term names the 2026
+  document.
+
+  Footnote 1's instruction that a cloud platform SBOM cover "the runtime
+  production environment" is deliberately not encoded. It constrains what the
+  SBOM is *of*, not what fields it carries, and nothing in an SBOM file
+  reliably declares its subject.
+
+- The memorandum itself, at
+  `docs/sources/documents/omb-m-26-05-risk-based-approach-software-hardware-security.pdf`,
+  redistributable as a US Government work under 17 U.S.C. §105, with its
+  SHA-256 recorded in the source index alongside every other cited document.
+- `fields` on a rule, for a requirement a document may satisfy in more than one
+  way. Lists IR attributes in precedence order and hands the validators the
+  first one carrying a real value; null tokens such as `NOASSERTION` are skipped
+  rather than shadowing a usable value behind them. `field` is unchanged and
+  remains the single-attribute form.
+- `cpe_wellformed`, checking CPE names against NIST IR 7695's own regular
+  expressions for the two bindings: the 2.3 formatted string (§6.2.2) and the
+  2.2 URI (§6.1). Transcribed rather than paraphrased, because structural checks
+  written by hand admitted malformed names one class at a time — any `part`
+  value, then empty attributes, then attribute text containing spaces. A
+  component count and a `part` check are not the grammar. One documented
+  deviation: the published 2.2 expression pins the scheme's first letter to
+  lower case while allowing either case for the other two, so `CPE:/a:vendor` is
+  rejected as written; URI schemes are case-insensitive (RFC 3986 §3.1) and this
+  matches the whole scheme either way. It checks form, not existence — whether a
+  vendor and product name something real is not a question an SBOM validator can
+  answer.
+- `component_identifier`, for clauses accepting either identifier. Decides the
+  form per value from its prefix, so a CPE is validated as a CPE and a purl as a
+  purl.
+
 ### Fixed
 - Components identified only by a CPE were reported as having no identifier, and
   on SPDX input a CPE was never read at all. Two defects that hid each other.
@@ -39,28 +101,6 @@ follow [Semantic Versioning](https://semver.org/).
   as a violation. Absent now reports WARN; a hash that is present and outside
   the required set still fails. Predates the identifier work above and was found
   while reviewing it.
-
-### Added
-- `fields` on a rule, for a requirement a document may satisfy in more than one
-  way. Lists IR attributes in precedence order and hands the validators the
-  first one carrying a real value; null tokens such as `NOASSERTION` are skipped
-  rather than shadowing a usable value behind them. `field` is unchanged and
-  remains the single-attribute form.
-- `cpe_wellformed`, checking CPE names against NIST IR 7695's own regular
-  expressions for the two bindings: the 2.3 formatted string (§6.2.2) and the
-  2.2 URI (§6.1). Transcribed rather than paraphrased, because structural checks
-  written by hand admitted malformed names one class at a time — any `part`
-  value, then empty attributes, then attribute text containing spaces. A
-  component count and a `part` check are not the grammar. One documented
-  deviation: the published 2.2 expression pins the scheme's first letter to
-  lower case while allowing either case for the other two, so `CPE:/a:vendor` is
-  rejected as written; URI schemes are case-insensitive (RFC 3986 §3.1) and this
-  matches the whole scheme either way. It checks form, not existence — whether a
-  vendor and product name something real is not a question an SBOM validator can
-  answer.
-- `component_identifier`, for clauses accepting either identifier. Decides the
-  form per value from its prefix, so a CPE is validated as a CPE and a purl as a
-  purl.
 
 ## [2.2.2] - 2026-08-02
 
@@ -485,7 +525,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.2.2...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/SemClone/ossbomer/compare/v2.2.2...v2.3.0
 [2.2.2]: https://github.com/SemClone/ossbomer/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/SemClone/ossbomer/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/SemClone/ossbomer/compare/v2.1.0...v2.2.0

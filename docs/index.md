@@ -44,8 +44,8 @@ together, because a good NTIA score tells you nothing about CRA readiness.
 
 ## What comes with it
 
-Thirteen usable profiles ship in the box, covering CISA 2026, NTIA, EU CRA, BSI TR-03183,
-India CERT-In, OpenChain Telco, FedRAMP, AIBOM, and four license use cases. See
+Fourteen usable profiles ship in the box, covering CISA 2026, NTIA, EU CRA, BSI TR-03183,
+India CERT-In, OpenChain Telco, FedRAMP, OMB M-26-05, AIBOM, and four license use cases. See
 [Profiles]({{ site.baseurl }}/guide/profiles) for the full catalog.
 
 Output is console text, JSON, or SARIF, and the exit code is meant to be used

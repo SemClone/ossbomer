@@ -1,0 +1,66 @@
+id: omb-m-26-05
+name: OMB M-26-05 SBOM expectations (discretionary; via the CISA 2025 draft minimum elements)
+version: "2026-01"
+sources:
+  - name: OMB
+    ref: "Memorandum M-26-05, Adopting a Risk-based Approach to Software and Hardware Security, 2026-01-23. Rescinds M-22-18 and M-23-16. Agencies 'may also choose to adopt contractual terms that require a software producer to provide a current software bill of materials (SBOM) upon request'; footnote 1 adds that for a cloud platform such a term should specify an SBOM 'of the runtime production environment'. The memorandum names no data field."
+    url: https://www.whitehouse.gov/wp-content/uploads/2026/01/M-26-05-Adopting-a-Risk-based-Approach-to-Software-and-Hardware-Security.pdf
+  - name: CISA
+    ref: "2025 Minimum Elements for a Software Bill of Materials (SBOM), published in draft form 2025-08-22. The field list M-26-05 names, cited there by publication date as reference material. This profile inherits its rules verbatim."
+    url: https://www.cisa.gov/resources-tools/resources/2025-minimum-elements-software-bill-materials-sbom
+
+# M-26-05 mandates nothing about SBOMs. Read that sentence again before using
+# this profile, because it is the whole of what the memorandum does.
+#
+# The memorandum rescinds M-22-18 and M-23-16 and replaces their government-wide
+# floor with agency discretion: "Each agency head is ultimately responsible for
+# assuring the security of software and hardware that is permitted to operate on
+# the agency's network. There is no universal, one-size-fits-all method of
+# achieving that result." On SBOMs specifically it says agencies "may also choose
+# to adopt contractual terms" requiring one on request. May, not shall.
+#
+# So a PASS here does not mean "M-26-05 compliant". No such state exists; the
+# memorandum imposes no requirement to comply with. What a PASS means is: an
+# SBOM produced under a contractual term an agency chose to adopt under M-26-05
+# carries the fields the memorandum pointed that agency at. The obligation comes
+# from the contract, not from the memorandum.
+#
+# This is deliberately a composition rather than a transcription, for the same
+# reason `fedramp-sbom` is. There is no field list to transcribe. Inventing
+# `omb-*` rule ids would imply clauses in a two-page memorandum that contains
+# none, which is precisely the defect that got `eu-cra-annex-vii` withdrawn.
+# Findings report `cisa-*` and `ntia-*` rule ids citing the documents the fields
+# actually come from.
+#
+# Why the 2025 draft and not `cisa-2026-min`:
+#
+# M-26-05 cites "CISA, 2025 Minimum Elements for a Software Bill of Materials
+# (SBOM) (published in draft form on Aug. 22, 2025)". That is a dated citation to
+# one specific document, in a list the memorandum introduces as material agencies
+# "can reference ... for additional information and options". It is not a
+# delegation to whatever CISA publishes next, which is what EO 14028 §4(f) does
+# and why `fedramp-sbom` tracks the current document instead.
+#
+# CISA replaced that draft on 2026-07-29 with the 2026 Minimum Elements. The
+# memorandum has not been reissued to cite it. Following the drift silently would
+# mean this profile stopped checking what M-26-05 says and started checking what
+# it might say later, and a procurement written against the memorandum as issued
+# would fail on fields its own reference document never listed. Same reasoning
+# that keeps `ntia-min-elements` pinned to 2021.
+#
+# If you want the current CISA field list, use `cisa-2026-min` directly. If your
+# agency's contractual term names the 2026 document rather than M-26-05's
+# reference list, that is the profile to run, and this one will mislead you.
+#
+# Not encoded: footnote 1's instruction that a cloud platform SBOM cover "the
+# runtime production environment". That constrains what the SBOM must be *of*,
+# not what fields it must carry. Nothing in an SBOM file reliably declares
+# whether its subject was a runtime production environment or a build tree, so a
+# rule here would be guessing. It is a scoping question for whoever writes the
+# contract and whoever accepts the deliverable.
+
+extends:
+  - cisa-2025-min
+
+# No `rules:` key on purpose. Anything added here would be an invented OMB
+# requirement. Schema minima and scoring are inherited along with the rules.

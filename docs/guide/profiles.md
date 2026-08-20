@@ -16,7 +16,7 @@ use case.
 
 ## The catalog
 
-Thirteen usable profiles ship with the tool, plus one withdrawn id that refuses
+Fourteen usable profiles ship with the tool, plus one withdrawn id that refuses
 to run. Run `ossbomer profiles` to see them locally.
 
 ### Regulations and programs
@@ -31,6 +31,7 @@ to run. Run `ossbomer profiles` to see them locally.
 | `cert-in-v2.0` | India CERT-In SBOM Guidelines v2.0 |
 | `openchain-telco-v1.1` | OpenChain Telco SBOM Quality v1.1 |
 | `fedramp-sbom` | FedRAMP SBOM expectations, via EO 14028 and the CISA minimum elements |
+| `omb-m-26-05` | OMB M-26-05 SBOM expectations. Discretionary: the memorandum lets an agency require an SBOM, and names no field of its own |
 | `aibom-v0.1` | AI Bill of Materials (net-new, advisory) |
 | `eu-cra-annex-vii` | **Withdrawn.** Cited clauses that do not exist; refuses to run and exits 2. Use `eu-cra-annex-i`. |
 
@@ -115,7 +116,7 @@ By jurisdiction, what ships today:
 
 | Region | Covered by | Status |
 | ------ | ---------- | ------ |
-| United States | `cisa-2026-min`, `ntia-min-elements`, `fedramp-sbom` | Yes |
+| United States | `cisa-2026-min`, `ntia-min-elements`, `fedramp-sbom`, `omb-m-26-05` | Yes |
 | European Union | `eu-cra-annex-i` | Yes |
 | Germany | `bsi-tr-03183-v2.1` | Yes |
 | India | `cert-in-v2.0` | Yes |
