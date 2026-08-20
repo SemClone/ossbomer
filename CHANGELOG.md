@@ -6,20 +6,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-- A licence declared as prose rather than an SPDX identifier was reported as
-  unresolvable, so a document naming its licence perfectly clearly counted as
-  not having declared one. Maven-sourced SBOMs carry the name from a POM's
-  `<licenses>` block far more often than the identifier: "The Apache Software
-  License, Version 2.0" rather than `Apache-2.0`.
-
-  The same licence is written several ways across POMs — with and without a
-  leading "The", with "Version 2.0" or ", version 2.0" or a bare "2.0", with
-  "Software" in the middle or not. Listing every spelling would be an
-  open-ended table, so the spelling is normalised away and matched against the
-  alias table that already existed. This is normalisation, not inference: the
-  alias still has to be there, and nothing here makes "BSD" mean
-  `BSD-3-Clause`.
+## [2.3.1] - 2026-08-20
 
 ### Added
 - A declaration that names a licence without identifying it is now its own
@@ -41,6 +28,21 @@ follow [Semantic Versioning](https://semver.org/).
   missing — "it does not say whether later versions are permitted, so it could
   be LGPL-2.1-only or LGPL-2.1-or-later" — because that sends a reader to a
   different fix than an unrecognised name does.
+
+### Fixed
+- A licence declared as prose rather than an SPDX identifier was reported as
+  unresolvable, so a document naming its licence perfectly clearly counted as
+  not having declared one. Maven-sourced SBOMs carry the name from a POM's
+  `<licenses>` block far more often than the identifier: "The Apache Software
+  License, Version 2.0" rather than `Apache-2.0`.
+
+  The same licence is written several ways across POMs — with and without a
+  leading "The", with "Version 2.0" or ", version 2.0" or a bare "2.0", with
+  "Software" in the middle or not. Listing every spelling would be an
+  open-ended table, so the spelling is normalised away and matched against the
+  alias table that already existed. This is normalisation, not inference: the
+  alias still has to be there, and nothing here makes "BSD" mean
+  `BSD-3-Clause`.
 
 ## [2.3.0] - 2026-08-20
 
@@ -694,7 +696,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.3.1...HEAD
+[2.3.1]: https://github.com/SemClone/ossbomer/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/SemClone/ossbomer/compare/v2.2.2...v2.3.0
 [2.2.2]: https://github.com/SemClone/ossbomer/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/SemClone/ossbomer/compare/v2.2.0...v2.2.1
