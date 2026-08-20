@@ -18,6 +18,7 @@ from functools import lru_cache
 from typing import Any, Callable
 
 from .ir import Sbom, is_null_value
+from .licenses import AMBIGUOUS_NAMES, descriptive_key
 
 # A validator: (value, ctx, params) -> (ok, message)
 ValidatorFn = Callable[[Any, "ValidatorContext", dict], "tuple[bool, str]"]
@@ -272,6 +273,15 @@ def _license_spdx_normalized(value: Any, ctx: ValidatorContext,
         if d.declared_unknown:
             if not allow_unknown:
                 problems.append(f"{d.raw!r} is an explicit unknown")
+            continue
+        if d.ambiguous:
+            # A different fix from an unrecognised name: the document names the
+            # licence, and the author has to say which identifier they mean.
+            problems.append(
+                f"{d.raw!r} (declared in the {d.source!r} field) names a licence "
+                f"but not an SPDX identifier: it does not say whether later "
+                f"versions are permitted, so it could be "
+                f"{AMBIGUOUS_NAMES[descriptive_key(d.raw)]}")
             continue
         problems.append(
             f"{d.raw!r} (declared in the {d.source!r} field) does not resolve "

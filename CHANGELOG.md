@@ -6,6 +6,34 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- A licence declared as prose rather than an SPDX identifier was reported as
+  unresolvable, so a document naming its licence perfectly clearly counted as
+  not having declared one. Maven-sourced SBOMs carry the name from a POM's
+  `<licenses>` block far more often than the identifier: "The Apache Software
+  License, Version 2.0" rather than `Apache-2.0`.
+
+  The same licence is written several ways across POMs — with and without a
+  leading "The", with "Version 2.0" or ", version 2.0" or a bare "2.0", with
+  "Software" in the middle or not. Listing every spelling would be an
+  open-ended table, so the spelling is normalised away and matched against the
+  alias table that already existed. This is normalisation, not inference: the
+  alias still has to be there, and nothing here makes "BSD" mean
+  `BSD-3-Clause`.
+
+### Added
+- A declaration that names a licence without identifying it is now its own
+  outcome rather than plain "unresolved". "GNU LESSER GENERAL PUBLIC LICENSE,
+  Version 2.1" names the licence and the version and still is not an
+  identifier, because `-only` versus `-or-later` is the copyright holder's
+  grant and the licence's own name does not carry it. Resolving either way
+  would assert something the document never said.
+
+  Both remain unresolved, but the finding now says which distinction is
+  missing — "it does not say whether later versions are permitted, so it could
+  be LGPL-2.1-only or LGPL-2.1-or-later" — because that sends a reader to a
+  different fix than an unrecognised name does.
+
 ## [2.3.0] - 2026-08-20
 
 ### Added

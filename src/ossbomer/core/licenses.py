@@ -53,6 +53,8 @@ VIA_CASE = "case-corrected"           # matched an SPDX key ignoring case
 VIA_SCANCODE_KEY = "scancode-key"     # matched the lowercase-hyphen form
 VIA_DEPRECATED_KEY = "deprecated-key"  # matched a superseded SPDX key
 VIA_ALIAS = "alias"                   # matched a curated alias below
+VIA_DESCRIPTIVE = "descriptive-name"  # matched an alias through its prose spelling
+AMBIGUOUS = "ambiguous"               # names the licence but not which SPDX id
 UNRESOLVED = "unresolved"             # could not be resolved; not guessed at
 DECLARED_UNKNOWN = "declared-unknown"  # NOASSERTION / NONE: an honest absence
 
@@ -171,6 +173,19 @@ class LicenseDeclaration:
     def resolved(self) -> bool:
         """True when this carries a usable SPDX expression."""
         return self.normalized is not None
+
+    @property
+    def ambiguous(self) -> bool:
+        """The text names a licence, but not precisely enough for an SPDX id.
+
+        Distinct from plain unresolved. "GNU LESSER GENERAL PUBLIC LICENSE,
+        Version 2.1" identifies the licence and the version and still does not
+        say whether later versions are permitted, which is the whole difference
+        between `LGPL-2.1-only` and `LGPL-2.1-or-later`. Both remain
+        unresolved -- but "I do not recognise this" and "this is not specific
+        enough to be an identifier" send a reader to different fixes.
+        """
+        return self.method == AMBIGUOUS
 
     @property
     def declared_unknown(self) -> bool:
@@ -338,6 +353,50 @@ def reset_caches() -> None:
     normalize.cache_clear()
 
 
+# Prose spellings that name a licence family and version without saying which
+# SPDX identifier applies. The GNU licences are the whole of this problem: the
+# difference between `-only` and `-or-later` is the copyright holder's grant,
+# which the licence's own name does not carry. Resolving either way would assert
+# something the document never said.
+#
+# Matched on the descriptive key below, so case, a leading "The" and
+# ", Version 2.1" spellings all land here.
+AMBIGUOUS_NAMES: dict[str, str] = {
+    "gnu general public license 1.0": "GPL-1.0-only or GPL-1.0-or-later",
+    "gnu general public license 2.0": "GPL-2.0-only or GPL-2.0-or-later",
+    "gnu general public license 3.0": "GPL-3.0-only or GPL-3.0-or-later",
+    "gnu lesser general public license 2.1": "LGPL-2.1-only or LGPL-2.1-or-later",
+    "gnu lesser general public license 3.0": "LGPL-3.0-only or LGPL-3.0-or-later",
+    "gnu library general public license 2.0": "LGPL-2.0-only or LGPL-2.0-or-later",
+    "gnu affero general public license 3.0": "AGPL-3.0-only or AGPL-3.0-or-later",
+}
+
+# Noise that carries no meaning in a licence name, stripped before matching so
+# one alias entry serves every spelling of it.
+_LEADING_THE = re.compile(r"^the\s+")
+_VERSION_WORD = re.compile(r",?\s*\bversions?\b\s*", re.IGNORECASE)
+_COMMA = re.compile(r"\s*,\s*")
+
+
+def descriptive_key(text: str) -> str:
+    """The comparison form of a prose licence name.
+
+    An SBOM writes the same licence as "Apache License, Version 2.0", "The
+    Apache Software License, version 2.0" and "Apache License 2.0" depending on
+    which POM it came from, and Maven-sourced documents carry the prose name far
+    more often than the identifier. Listing every spelling would be an
+    open-ended table; normalising the spelling away is one function.
+
+    Applied to both sides of the lookup, so the alias table stays written in
+    whichever form reads naturally.
+    """
+    key = _WHITESPACE.sub(" ", text).strip().lower()
+    key = _LEADING_THE.sub("", key)
+    key = _VERSION_WORD.sub(" ", key)
+    key = _COMMA.sub(" ", key)
+    return _WHITESPACE.sub(" ", key).strip()
+
+
 @lru_cache(maxsize=1)
 def _index() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     """Build lookup tables from the SPDX license index shipped upstream.
@@ -380,6 +439,24 @@ def _canonical_expression(text: str) -> str | None:
     if info.errors:
         return None
     return info.normalized_expression or text
+
+
+@lru_cache(maxsize=1)
+def _descriptive_aliases_cached(items: tuple[tuple[str, str], ...]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key, value in items:
+        out.setdefault(descriptive_key(key), value)
+    return out
+
+
+def _descriptive_aliases(aliases: dict[str, str]) -> dict[str, str]:
+    """The alias table re-keyed by descriptive form.
+
+    `setdefault`, so where two alias spellings collapse to the same key the
+    first wins rather than the last -- a table edit should not silently change
+    which mapping applies.
+    """
+    return _descriptive_aliases_cached(tuple(sorted(aliases.items())))
 
 
 @lru_cache(maxsize=4096)
@@ -442,5 +519,19 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     if alias:
         return LicenseDeclaration(text, source, alias, VIA_ALIAS)
 
-    # 7. Not resolvable without guessing, so it is reported rather than guessed.
+    # 7. The same aliases, matched through the prose spelling: a leading "The",
+    #    ", Version 2.0" and stray commas removed from both sides. This is
+    #    normalisation rather than inference -- the alias still has to be there.
+    descriptive = descriptive_key(text)
+    alias = aliases.get(descriptive) or _descriptive_aliases(aliases).get(descriptive)
+    if alias:
+        return LicenseDeclaration(text, source, alias, VIA_DESCRIPTIVE)
+
+    # 8. Names a licence, but not precisely enough to be an identifier. Reported
+    #    as its own thing so the reader is told which distinction is missing
+    #    rather than that the name was not recognised.
+    if descriptive in AMBIGUOUS_NAMES:
+        return LicenseDeclaration(text, source, None, AMBIGUOUS)
+
+    # 9. Not resolvable without guessing, so it is reported rather than guessed.
     return LicenseDeclaration(text, source, None, UNRESOLVED)
