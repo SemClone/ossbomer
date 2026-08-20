@@ -6,6 +6,48 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- A file inventory in the IR, and a `file` rule scope to target it. The IR
+  modelled documents and components and nothing else, so an SBOM's file entries
+  and the checksums on them were discarded at parse time: SPDX 2.3 §8.4 makes
+  `FileChecksum` mandatory on a file entry, and no rule could say so because
+  there was nothing to point at.
+
+  `Sbom.files` is populated from SPDX 2.x's `files` section in all four
+  encodings, from SPDX 3.0's `software_File` nodes including their
+  `verifiedUsing` digests, and from CycloneDX components of `type: file`. The
+  CycloneDX ones are mirrored rather than moved: taking them out of `components`
+  would change what every existing component rule sees.
+
+  A `file` rule answers two different questions and only one can be a violation.
+  A document with no inventory reports `WARN` whatever the rule's severity —
+  the section is optional in both formats and a dependency-level SBOM
+  legitimately has none, so deriving that from the severity would make a `MUST`
+  file rule fail every SBOM that does not enumerate files. Within an entry the
+  severity governs as usual, so a `MUST` rule still fails a file whose checksum
+  is missing.
+
+  No bundled profile carries a file rule yet. This is the parser and engine
+  work; rules follow per profile, where a clause actually calls for one.
+
+### Fixed
+- `present` passed a mapping field that was empty. `_as_list` had no branch for
+  a mapping, so `hashes: {}` fell through to the catch-all, came back as `[{}]`
+  and read as populated — a component or file carrying no hashes at all
+  satisfied a `present` check. A mapping now contributes its values, which is
+  what a rule asking whether a hash is present means. No bundled profile paired
+  `present` with a mapping field, so no shipped rule was affected; the natural
+  spelling of a file checksum rule is the first thing that needed it.
+  `known_unknowns_declared` had been working around this locally since it was
+  written.
+
+### Changed
+- A rule naming an unknown `scope` is refused when the profile loads, rather
+  than silently producing no findings. Previously a typo made the rule vanish,
+  which reads as a clean pass; `file` and `files` are one keystroke apart. This
+  can turn a private overlay that loaded before into a load error, which is the
+  point — it was never running the rule it appeared to declare.
+
 ## [2.3.0] - 2026-08-20
 
 ### Added

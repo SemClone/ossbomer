@@ -99,7 +99,7 @@ Covered in full on [Schema policy]({{ site.baseurl }}/guide/schema-policy).
 | Key | Required | Description |
 | --- | -------- | ----------- |
 | `id` | yes | Unique within the profile. This is what `excludes` targets, so treat it as API. |
-| `scope` | yes | `document`, `component`, or `dependency`. |
+| `scope` | yes | `document`, `component`, `file`, or `dependency`. An unknown value is refused at load time. |
 | `severity` | yes | `MUST`, `MUST_WHERE_AVAILABLE`, `SHOULD`, or `MAY`. |
 | `category` | yes | One of the five scoring categories. |
 | `citation` | yes | The clause this comes from, quoted in the finding. |
@@ -108,7 +108,8 @@ Covered in full on [Schema policy]({{ site.baseurl }}/guide/schema-policy).
 | `validators` | yes | Validators to run, in order. |
 
 `scope` decides what the rule runs against: once for `document`, once per
-component for `component`, and over the dependency graph for `dependency`.
+component for `component`, once per file entry for `file`, and over the
+dependency graph for `dependency`.
 
 Available validators are listed by `ossbomer validators` and in the
 [CLI reference]({{ site.baseurl }}/reference/cli).
@@ -143,8 +144,47 @@ Component scope:
 | `hashes` | Algorithm to digest. |
 | `external_refs`, `properties` | Passed through from the source. |
 
+File scope:
+
+| Field | Holds |
+| ----- | ----- |
+| `name` | The file's path. SPDX writes it as `fileName`, CycloneDX as the component `name`. |
+| `spdx_id` | The element identifier. SPDX's `SPDXID`, CycloneDX's `bom-ref`. |
+| `hashes` | Algorithm to digest, the same shape as a component's, so one validator serves both. |
+| `licenses`, `copyright` | Per-file declarations, where the document makes them. |
+
 Anything not listed falls back to a dotted lookup into the component's raw source
 mapping, so `field: raw.someVendorExtension` works for data the IR does not model.
+
+### File scope, and the two kinds of absence
+
+The file inventory is optional in both formats, and a dependency-level SBOM
+legitimately has none. So a `file` rule answers two different questions and only
+one of them can be a violation:
+
+| Situation | Verdict |
+| --------- | ------- |
+| No file inventory at all | `WARN`, whatever the rule's severity |
+| A file entry present, required field missing | the rule's severity decides |
+| A file entry present, field valid | `PASS` |
+
+The first row does not follow the severity on purpose. A `MUST` file rule would
+otherwise fail every SBOM that simply does not enumerate files, which inverts the
+requirement. It reports `WARN` rather than nothing so that "not checked" stays
+distinguishable from "checked and satisfied".
+
+Within an entry the severity governs as usual, so a `MUST` rule still fails a
+file whose checksum is missing — which is what SPDX 2.3 §8.4 asks for, since it
+makes `FileChecksum` mandatory on an entry that exists.
+
+{: .note }
+A file with no checksum reaches a rule only from CycloneDX. spdx-tools refuses
+to parse an SPDX file entry that has none, enforcing §8.4 before any profile
+runs.
+
+CycloneDX has no files section: a file is a component whose `type` is `file`.
+Those appear in the file inventory *and* stay in the component list, so existing
+component rules see exactly what they saw before.
 
 ### When a clause accepts more than one field
 

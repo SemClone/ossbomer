@@ -155,6 +155,31 @@ def _eval_rule(sbom: Sbom, rule: Rule) -> list[Finding]:
                                     "no components in SBOM"))
         for i, comp in enumerate(sbom.components):
             evaluate_target(comp, f"components[{i}]:{comp.identity}")
+    elif rule.scope == "file":
+        # Two different absences, and only one of them is a defect.
+        #
+        # A document with no file inventory has broken nothing: SPDX 2.3 §8 makes
+        # the section optional and a dependency-level SBOM legitimately has none.
+        # A file entry that exists and carries no checksum has broken §8.4, which
+        # makes FileChecksum mandatory on an entry that is there.
+        #
+        # So the inventory's absence is reported WARN whatever the rule's
+        # severity, exactly as an SBOM with no components is. Deriving it from
+        # the severity instead would make a `MUST` file rule fail every SBOM that
+        # simply does not enumerate files, which is the requirement inverted.
+        # Within an entry the severity governs as usual, so `MUST` still fails a
+        # file whose checksum is missing.
+        #
+        # WARN rather than silence: nothing was checked, and a rule that emitted
+        # no finding at all would be indistinguishable from one that checked and
+        # was satisfied.
+        if not sbom.files:
+            findings.append(Finding(
+                rule.id, rule.layer, rule.severity, rule.category,
+                Verdict.WARN, rule.citation, "files", None,
+                "no file inventory in SBOM"))
+        for i, entry in enumerate(sbom.files):
+            evaluate_target(entry, f"files[{i}]:{entry.identity}")
     elif rule.scope == "dependency":
         # Graph-level checks operate on the whole SBOM via the validator context.
         evaluate_target(sbom, "dependencies")

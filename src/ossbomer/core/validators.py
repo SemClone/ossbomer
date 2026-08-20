@@ -65,6 +65,13 @@ CALVER_RE = re.compile(r"^\d{4}([.\-]\d{1,2}){1,2}([.\-][0-9A-Za-z]+)?$")
 def _as_list(value: Any) -> list:
     if value is None:
         return []
+    if isinstance(value, dict):
+        # A mapping's values are its data. `hashes` is alg -> digest, and a rule
+        # asking whether a hash is present means the digest, not the algorithm
+        # name. Without this branch the fallback below wrapped the mapping
+        # itself, so `{}` came back as `[{}]` and read as populated: `present`
+        # returned True for a component or file carrying no hashes at all.
+        return list(value.values())
     if isinstance(value, (list, tuple, set)):
         return list(value)
     return [value]
@@ -579,9 +586,9 @@ def _declared(value: Any, ctx: ValidatorContext, params: dict) -> tuple[bool, st
     """
     if value is None:
         return False, "silent gap: no value and no explicit NOASSERTION/NONE"
-    # Checked before _as_list: that helper wraps a non-sequence in a one-item
-    # list, so an empty dict (`hashes: {}`) would come back as `[{}]` and read as
-    # populated. Empty containers and empty strings are silence.
+    # Empty containers and empty strings are silence. `_as_list` now unwraps a
+    # mapping to its values so `{}` no longer reads as populated, but it still
+    # wraps a bare `""` into `[""]`, which is truthy -- so this stays.
     if isinstance(value, (dict, list, tuple, set, str)) and not value:
         return False, "silent gap: no value and no explicit NOASSERTION/NONE"
     if not _as_list(value):

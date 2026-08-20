@@ -12,7 +12,7 @@ from datetime import timezone
 from typing import Any
 
 from .detect import Detection, detect_file
-from .ir import Component, Document, Sbom
+from .ir import Component, Document, File, Sbom
 from .licenses import (
     SOURCE_EXPRESSION,
     SOURCE_ID,
@@ -75,6 +75,24 @@ def _cdx_licenses(entry: dict[str, Any]) -> list[LicenseDeclaration]:
         elif lo.get("name"):
             out.append(normalize(str(lo["name"]), SOURCE_NAME))
     return out
+
+
+def _cdx_file(entry: dict[str, Any]) -> File:
+    """A CycloneDX `type: file` component, as a file entry.
+
+    `name` carries the path in CycloneDX, where SPDX uses `fileName`; both land
+    on `File.name` so one rule serves both formats.
+    """
+    declarations = _cdx_licenses(entry)
+    return File(
+        spdx_id=entry.get("bom-ref"),
+        name=entry.get("name"),
+        hashes={h["alg"].lower(): h["content"] for h in entry.get("hashes", []) or []
+                if "alg" in h and "content" in h},
+        licenses=[d.effective for d in declarations if d.effective],
+        copyright=entry.get("copyright"),
+        raw=entry,
+    )
 
 
 def _cdx_component(entry: dict[str, Any]) -> Component:
@@ -174,6 +192,12 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
     )
 
     components = [_cdx_component(c) for c in data.get("components", []) or []]
+    # CycloneDX has no separate files section: a file is a component whose
+    # `type` is "file". Mirrored into `files` rather than moved out of
+    # `components`, so file rules can reach them without changing what every
+    # existing component rule sees.
+    files = [_cdx_file(c) for c in data.get("components", []) or []
+             if (c.get("type") or "").lower() == "file"]
 
     deps: dict[str, list[str]] = {}
     for d in data.get("dependencies", []) or []:
@@ -183,7 +207,7 @@ def _cyclonedx_json_to_ir(data: dict[str, Any], det: Detection, path: str) -> Sb
 
     return Sbom(
         sbom_format="cyclonedx", spec_version=det.spec_version, encoding="json",
-        document=document, components=components, dependencies=deps,
+        document=document, components=components, files=files, dependencies=deps,
         source_path=path, raw=data,
     )
 
@@ -291,6 +315,25 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
             raw={"spdx_id": pkg.spdx_id},
         ))
 
+    # SPDX 2.3 §8 makes the files section optional, and §8.4 makes FileChecksum
+    # mandatory on any entry that is there. Nothing read it, so a rule about file
+    # integrity had nowhere to point.
+    files: list[File] = []
+    for f in getattr(doc, "files", []) or []:
+        declared = [getattr(f, "license_concluded", None)]
+        declared += list(getattr(f, "license_info_in_file", []) or [])
+        files.append(File(
+            spdx_id=getattr(f, "spdx_id", None),
+            name=getattr(f, "name", None),
+            hashes={c.algorithm.name.lower(): c.value
+                    for c in getattr(f, "checksums", []) or []},
+            licenses=[str(lic) for lic in declared
+                      if lic is not None and str(lic) not in ("None", "")],
+            copyright=(str(f.copyright_text)
+                       if getattr(f, "copyright_text", None) is not None else None),
+            raw={"spdx_id": getattr(f, "spdx_id", None)},
+        ))
+
     deps: dict[str, list[str]] = {}
     for rel in doc.relationships:
         if getattr(rel.relationship_type, "name", "") in ("DEPENDS_ON", "DESCRIBES", "CONTAINS"):
@@ -342,22 +385,58 @@ def _spdx2_to_ir(path: str, det: Detection) -> Sbom:
     return Sbom(
         sbom_format="spdx", spec_version=ci.spdx_version.replace("SPDX-", ""),
         encoding=det.encoding, document=document, components=components,
-        dependencies=deps, source_path=path,
+        files=files, dependencies=deps, source_path=path,
     )
 
 
 # ---- SPDX 3.0 (best-effort JSON-LD) ------------------------------------------
+
+def _spdx3_hashes(node: dict[str, Any]) -> dict[str, str]:
+    """Digests from a 3.0 element's `verifiedUsing` integrity methods.
+
+    3.0 replaced 2.x's `checksums` with a list of IntegrityMethod objects, of
+    which `Hash` is one; the algorithm may arrive bare (`sha256`) or namespaced
+    (`hashAlgorithm_sha256`), so the prefix is trimmed and the result lower-cased
+    to match `Component.hashes` and `File.hashes` elsewhere.
+
+    Applied to files only. Components on 3.0 documents carry no hashes today,
+    and giving them some would change what existing hash rules see on those
+    documents -- a separate change with its own blast radius.
+    """
+    hashes: dict[str, str] = {}
+    for entry in node.get("verifiedUsing", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("type", "")).split(":")[-1] != "Hash":
+            continue
+        algorithm = str(entry.get("algorithm", "")).split("_")[-1].strip().lower()
+        value = entry.get("hashValue")
+        if algorithm and value:
+            hashes[algorithm] = str(value)
+    return hashes
+
 
 def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     graph = data.get("@graph", []) if isinstance(data, dict) else []
     components: list[Component] = []
+    files: list[File] = []
     document = Document(raw=data if isinstance(data, dict) else {})
     for node in graph:
         if not isinstance(node, dict):
             continue
         ntype = str(node.get("type", "")).split(":")[-1]
+        if ntype == "software_File":
+            # Mirrored, not moved: these already reach `components` below, and
+            # taking them out would change what every existing component rule
+            # sees on a 3.0 document.
+            files.append(File(
+                spdx_id=node.get("spdxId"),
+                name=node.get("name"),
+                hashes=_spdx3_hashes(node),
+                raw=node,
+            ))
         if ntype in ("software_Package", "software_File", "Package"):
             components.append(Component(
                 bom_ref=node.get("spdxId"),
@@ -373,6 +452,6 @@ def _spdx3_json_to_ir(path: str, det: Detection) -> Sbom:
             document.creators = list(node.get("createdBy", []) or [])
     return Sbom(
         sbom_format="spdx", spec_version=det.spec_version, encoding="json",
-        document=document, components=components, source_path=path,
+        document=document, components=components, files=files, source_path=path,
         raw=data if isinstance(data, dict) else {},
     )
