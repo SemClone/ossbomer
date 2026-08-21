@@ -305,18 +305,41 @@ def test_no_ambiguous_name_is_also_a_resolvable_alias():
     "GNU Lesser General Public License, Version 2.1",
     "The GNU Lesser General Public License, Version 2.1",
 ])
-def test_ambiguity_wins_over_a_conflicting_alias(overlay, raw):
-    """No lookup may answer an ambiguous name with a confident identifier.
+def test_an_adopter_can_settle_an_ambiguous_name(overlay, raw):
+    """One rule for every refusal: an explicit statement by the adopter wins.
 
-    An alias -- shipped or adopter-declared -- that claims one of these names
-    would otherwise resolve it under the spelling that matches the alias key and
-    report the ambiguity under every other spelling: the same document, two
-    answers, decided by punctuation.
+    Reporting a name as ambiguous says *this tool* will not choose between
+    `-only` and `-or-later` on the document's behalf. An adopter who declares
+    which one they mean is not guessing -- they are telling us about their own
+    corpus, the same as when they map a denylisted family name.
+
+    Every spelling, so a leading "The" cannot make their rule apply to one form
+    and not another.
     """
     overlay('aliases:\n  "gnu lesser general public license 2.1": "LGPL-2.1-only"\n')
+    assert normalize(raw, SOURCE_NAME).normalized == "LGPL-2.1-only"
+
+
+@pytest.mark.parametrize("raw", [
+    "GNU Lesser General Public License 2.1",
+    "GNU Lesser General Public License, Version 2.1",
+])
+def test_ambiguity_still_applies_when_the_adopter_says_nothing(raw):
+    """The default, and what the ambiguity report is for."""
     declaration = normalize(raw, SOURCE_NAME)
     assert declaration.normalized is None
     assert declaration.ambiguous is True
+
+
+@pytest.mark.parametrize("raw", [
+    "GNU Lesser General Public License 2.1",
+    "The GNU Lesser General Public License, Version 2.1",
+])
+def test_an_adopter_refusal_beats_their_own_alias(overlay, raw):
+    """`never_resolve` is the more specific statement of the two."""
+    overlay('aliases:\n  "gnu lesser general public license 2.1": "LGPL-2.1-only"\n'
+            'never_resolve:\n  - "gnu lesser general public license 2.1"\n')
+    assert normalize(raw, SOURCE_NAME).normalized is None
 
 
 @pytest.mark.parametrize("raw", [

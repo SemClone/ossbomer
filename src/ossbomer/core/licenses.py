@@ -137,7 +137,53 @@ ALIASES: dict[str, str] = {
 # rejected by the parser; this list exists for the exceptions to that.
 # FALLBACK, pending SemClone/ospac#89. Which names are too vague to resolve is a
 # property of the licence landscape rather than of this tool.
-NEVER_RESOLVE: set[str] = {"gpl", "gpl+"}
+#
+# Complete enough to enforce the promise this module makes, though. "Nothing is
+# inferred by similarity" was true for most of these only because ospac happened
+# not to carry them -- an upstream release adding `bsd -> BSD-3-Clause` would
+# have made `normalize("BSD")` return a confident wrong answer, silently, and
+# the test protecting it would have failed *after* the behaviour changed rather
+# than instead of it. A promise enforced by someone else's omission is not
+# enforced.
+#
+# Only names that identify a family without identifying a licence belong here.
+# Free text ("see LICENSE file") is unresolvable structurally and needs no entry.
+NEVER_RESOLVE: set[str] = {
+    "gpl", "gpl+",
+    # Version unstated, and the versions differ in obligations.
+    "lgpl", "agpl", "apache", "mpl", "cddl", "epl", "cc",
+    # Which of the family, unstated. BSD alone spans 0/2/3/4-clause.
+    "bsd",
+    # Not licences: a posture, a category, or an absence of one.
+    "public domain", "proprietary", "commercial", "closed source",
+    "open source", "free", "freeware", "shareware", "other", "none",
+    # "-like" and "-style" are explicit statements that it is *not* that licence.
+    "bsd-like", "bsd style", "bsd-style", "mit-like", "mit style", "mit-style",
+    "gpl-like", "gpl style", "apache-like", "apache style",
+    # The same families written out. `descriptive_key` strips a leading "The"
+    # and the word "Version", not the word "License", so "Apache License" is a
+    # different key from "apache" and needs its own entry -- otherwise the bare
+    # token is refused while the spelling most SBOMs actually use is not.
+    #
+    # Only families whose versions differ. "MIT License", "ISC License" and
+    # "Zlib License" name exactly one licence and stay resolvable, and a version
+    # makes any of these specific again: "Apache License 2.0" is a different key
+    # and still resolves.
+    "apache license", "bsd license", "gpl license", "lgpl license",
+    "agpl license", "mpl license", "epl license", "cddl license",
+    "cc license", "gnu license", "gnu general public license",
+    "gnu lesser general public license", "gnu affero general public license",
+    # And spelled out in full. Three rounds of review found this list short by
+    # one spelling each time -- abbreviations, then "<family> License", now the
+    # written-out names -- so `test_every_versioned_family_is_refused_unversioned`
+    # generates the shapes from SPDX data rather than trusting this list to be
+    # complete. Entries here are what that test requires; add to both or neither.
+    "eclipse public license", "mozilla public license",
+    "common development and distribution license",
+    "common public license", "eclipse distribution license",
+    "apache software license", "the apache software license",
+    "creative commons", "gnu library general public license",
+}
 
 # Where operators and aliases can be extended without editing this package.
 #
@@ -334,7 +380,7 @@ def _overlay_sources() -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
-                       dict[str, str], set[str]]:
+                       dict[str, str], set[str], dict[str, str], set[str]]:
     """Built-in tables merged with every overlay. Overlays win on conflict.
 
     Returns the exact tables and their descriptive-key views. The views are
@@ -348,6 +394,8 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     """
     aliases: dict[str, str] = {}
     descriptive: dict[str, str] = {}
+    adopter_aliases: dict[str, str] = {}
+    adopter_refusals: set[str] = set()
 
     def add(key: str, value: str) -> None:
         squashed = _WHITESPACE.sub(" ", str(key)).strip().lower()
@@ -368,9 +416,15 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     for overlay in _overlay_sources():
         for key, value in (overlay.get("aliases") or {}).items():
             add(key, value)
+            squashed_key = _WHITESPACE.sub(" ", str(key)).strip().lower()
+            adopter_aliases[squashed_key] = str(value)
+            adopter_aliases[descriptive_key(squashed_key)] = str(value)
             overridden[descriptive_key(str(key))] = str(value)
         for key in overlay.get("never_resolve") or []:
-            never.add(_WHITESPACE.sub(" ", str(key)).strip().lower())
+            squashed_refusal = _WHITESPACE.sub(" ", str(key)).strip().lower()
+            never.add(squashed_refusal)
+            adopter_refusals.add(squashed_refusal)
+            adopter_refusals.add(descriptive_key(squashed_refusal))
         for pattern, operator in (overlay.get("separators") or {}).items():
             separators.append((re.compile(str(pattern)), str(operator)))
 
@@ -385,6 +439,15 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
             replacement = overridden.get(descriptive_key(key))
             if replacement is not None:
                 aliases[key] = replacement
+        # And the adopter's own table, which `normalize` reads first. Rewriting
+        # only the merged one left a stale exact-spelling entry answering ahead
+        # of it: with two overlays declaring keys that share a descriptive key,
+        # "Apache License, Version 2.0" got the earlier overlay's value while
+        # "The Apache License, Version 2.0" got the later one.
+        for key in list(adopter_aliases):
+            replacement = overridden.get(descriptive_key(key))
+            if replacement is not None:
+                adopter_aliases[key] = replacement
 
     # A denylist entry has to refuse the spellings the descriptive step would
     # otherwise reach. Refusing only the exact string let `"The Eclipse Public
@@ -392,7 +455,14 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     # which is the failure the denylist exists to prevent.
     never_descriptive = {descriptive_key(n) for n in never}
 
-    return aliases, never, tuple(separators), descriptive, never_descriptive
+    # What the adopter said, kept apart from the merged tables so `normalize`
+    # can consult it before anything else. Subtracting it from the denylist
+    # instead produced two bugs in one round: an override lost to the SPDX
+    # parser, which runs earlier, and lifting one spelling left the other
+    # refused. Order of precedence belongs where precedence is decided.
+
+    return (aliases, never, tuple(separators), descriptive, never_descriptive,
+            adopter_aliases, adopter_refusals)
 
 
 def reset_caches() -> None:
@@ -484,6 +554,32 @@ def _index() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     return by_key, by_scancode, by_superseded
 
 
+_EXPRESSION_SPLIT = re.compile(r"[()]|\b(?:AND|OR|WITH)\b", re.IGNORECASE)
+
+
+def _refused_operand(text: str, refusals: set[str]) -> str | None:
+    """The first operand of `text` that is refused, if any.
+
+    A refusal was matched against the whole string, so putting a refused name
+    inside an expression walked straight past it: "GPL" was refused and
+    "GPL/MIT" resolved to `GPL-1.0-or-later AND MIT` -- the confident wrong
+    answer the refusal exists to prevent, in the spelling SBOMs most often use
+    for dual licensing. Parentheses did the same for one token: "(GPL)".
+
+    Only called on text that parses as an expression, so the operands are known
+    to be operands. Splitting an arbitrary string on punctuation would break
+    names that legitimately contain it -- "Apache License, Version 2.0" is one
+    name, not two.
+    """
+    for token in _EXPRESSION_SPLIT.split(text):
+        candidate = _WHITESPACE.sub(" ", token).strip().lower()
+        if not candidate:
+            continue
+        if candidate in refusals or descriptive_key(candidate) in refusals:
+            return candidate
+    return None
+
+
 def _canonical_expression(text: str) -> str | None:
     """Return the canonical SPDX rendering of `text`, or None if it is not one."""
     try:
@@ -514,10 +610,33 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
         return LicenseDeclaration(raw=text, source=source, normalized=None,
                                   method=DECLARED_UNKNOWN)
 
-    aliases, never, separators, descriptive_aliases, never_descriptive = _tables()
+    (aliases, never, separators, descriptive_aliases, never_descriptive,
+     adopter_aliases, adopter_refusals) = _tables()
     squashed_early = _WHITESPACE.sub(" ", text).lower()
 
     descriptive = descriptive_key(squashed_early)
+
+    # -1. What the adopter said, before anything else looks at it.
+    #
+    #     They know their corpus; this tool does not get to overrule them, and
+    #     neither does the SPDX parser. An override used to be applied by
+    #     subtracting the name from the denylist further down, which left the
+    #     parser answering first: an overlay mapping "gpl" got the parser's
+    #     deprecated `GPL-1.0-or-later` rather than the identifier they chose.
+    #
+    #     A refusal in the same overlay is the more specific statement and is
+    #     checked first. Both are matched in either spelling, so a leading "The"
+    #     cannot make an adopter's own rule apply to one form and not the other.
+    if squashed_early in adopter_refusals or descriptive in adopter_refusals:
+        return LicenseDeclaration(text, source, None, UNRESOLVED)
+    adopted = adopter_aliases.get(squashed_early)
+    if adopted:
+        return LicenseDeclaration(text, source, adopted, VIA_ALIAS)
+    adopted = adopter_aliases.get(descriptive)
+    if adopted:
+        # Matched through the prose spelling, and recorded as such: the method
+        # says how it matched, not who declared it.
+        return LicenseDeclaration(text, source, adopted, VIA_DESCRIPTIVE)
 
     # 0. Refuse anything on the denylist before anything else gets a chance to
     #    resolve it. Bare "GPL" is accepted upstream as GPL-1.0-or-later, and
@@ -534,8 +653,12 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     #    deliberately, a well-formed expression sitting in the free-text slot.
     #    `+`, `-or-later`, `-only`, lowercase and/or/with, and nesting are all
     #    handled by the parser itself and need nothing here.
+    all_refusals = never | never_descriptive | adopter_refusals
+
     canonical = _canonical_expression(text)
     if canonical:
+        if _refused_operand(text, all_refusals):
+            return LicenseDeclaration(text, source, None, UNRESOLVED)
         return LicenseDeclaration(text, source, canonical, VIA_EXPRESSION)
 
     # 1b. Named, but not precisely enough to be an identifier. Above every
@@ -557,6 +680,10 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     if rewritten != text:
         canonical = _canonical_expression(rewritten)
         if canonical:
+            # Checked on the rewritten form: step 0 saw "GPL/MIT", whose
+            # operands only become visible once the separator is an operator.
+            if _refused_operand(rewritten, all_refusals):
+                return LicenseDeclaration(text, source, None, UNRESOLVED)
             return LicenseDeclaration(text, source, canonical, VIA_SEPARATOR)
 
     by_key, by_scancode, by_superseded = _index()

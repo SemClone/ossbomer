@@ -225,8 +225,14 @@ def test_an_overlay_file_can_add_aliases(tmp_path, monkeypatch):
         # An overlay wins over a built-in refusal, in both directions.
         assert normalize("BSD", SOURCE_NAME).normalized == "BSD-3-Clause"
         assert normalize("MIT", SOURCE_NAME).normalized is None
-        assert normalize("Apache-2.0 plus MIT", SOURCE_NAME).normalized == \
-            "Apache-2.0 AND MIT"
+        # The separator rewrite itself, on operands the overlay says nothing
+        # about. It used to use MIT, which the same overlay refuses -- so it
+        # asserted that a refused operand resolves inside a compound, which
+        # is the hole the operand check closed.
+        assert normalize("Apache-2.0 plus ISC", SOURCE_NAME).normalized == \
+            "Apache-2.0 AND ISC"
+        # And the refusal reaches inside the compound, which is the point.
+        assert normalize("Apache-2.0 plus MIT", SOURCE_NAME).normalized is None
     finally:
         monkeypatch.delenv(ENV_ALIASES, raising=False)
         reset_caches()
@@ -314,4 +320,313 @@ def test_normalization_works_without_ospac_at_all(monkeypatch):
         assert normalize("BSD", SOURCE_NAME).normalized is None
     finally:
         monkeypatch.setattr(builtins, "__import__", real_import)
+        reset_caches()
+
+# ---- the promise must be ours to keep ----------------------------------------
+
+def test_every_refused_name_is_refused_by_us_not_by_upstreams_omission():
+    """`test_ambiguous_text_is_never_guessed` above states a promise: these names
+    are never guessed at. Most of them used to hold only because ospac did not
+    happen to carry them.
+
+    That is not a promise, it is a coincidence. ospac is actively adding folk
+    spellings (SemClone/ospac#88, #89), and a release adding `bsd ->
+    BSD-3-Clause` would have made `normalize("BSD")` return a confident wrong
+    answer -- with the test failing *after* the behaviour changed rather than
+    instead of it.
+
+    Each family name is now on the denylist, which is checked before any lookup,
+    so no upstream data can reach them.
+    """
+    from ossbomer.core.licenses import NEVER_RESOLVE
+
+    family_names = ["gpl", "lgpl", "agpl", "bsd", "apache", "mpl", "epl", "cddl",
+                    "public domain", "proprietary", "commercial", "bsd-like"]
+    missing = [n for n in family_names if n not in NEVER_RESOLVE]
+    assert not missing, f"promised as never-guessed but not denylisted: {missing}"
+
+
+def test_the_denylist_stops_the_tool_guessing_not_the_adopter_deciding(tmp_path,
+                                                                      monkeypatch):
+    """Who the refusal is aimed at.
+
+    The denylist exists so *this tool* never invents an answer, and so upstream
+    data cannot quietly start inventing one on its behalf. It is not there to
+    overrule the person running it: an adopter who maps "bsd" has made a
+    decision about their own corpus, and overlays win on conflict.
+
+    So an explicit overlay alias lifts the refusal for that name and nothing
+    else does -- not the shipped tables, not ospac's.
+    """
+    from ossbomer.core.licenses import reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('aliases:\n  "bsd": "BSD-3-Clause"\n')
+    monkeypatch.setenv("OSSBOMER_LICENSE_ALIASES", str(overlay))
+    reset_caches()
+    try:
+        # The name the adopter mapped: their call, honoured.
+        assert normalize("BSD", SOURCE_NAME).normalized == "BSD-3-Clause"
+        # A name they said nothing about: still refused.
+        assert normalize("Apache", SOURCE_NAME).normalized is None
+        assert normalize("MIT", SOURCE_NAME).normalized == "MIT"
+    finally:
+        monkeypatch.delenv("OSSBOMER_LICENSE_ALIASES", raising=False)
+        reset_caches()
+
+
+def test_never_resolve_beats_an_alias_in_the_same_overlay(tmp_path, monkeypatch):
+    """Both directions in one file. `never_resolve` is the more specific
+    statement, so it wins over an alias for the same name."""
+    from ossbomer.core.licenses import reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('aliases:\n  "bsd": "BSD-3-Clause"\n'
+                       'never_resolve:\n  - "bsd"\n')
+    monkeypatch.setenv("OSSBOMER_LICENSE_ALIASES", str(overlay))
+    reset_caches()
+    try:
+        assert normalize("BSD", SOURCE_NAME).normalized is None
+    finally:
+        monkeypatch.delenv("OSSBOMER_LICENSE_ALIASES", raising=False)
+        reset_caches()
+
+
+def test_ospac_data_cannot_lift_a_refusal(tmp_path, monkeypatch):
+    """The case this hardening is for.
+
+    ospac is filling in folk spellings (SemClone/ospac#88, #89). A release
+    adding `bsd -> BSD-3-Clause` must not make this tool start answering "BSD",
+    because nothing about that document changed -- only somebody else's data.
+    """
+    import functools
+
+    import ossbomer.core.licenses as L
+    from ossbomer.core.licenses import reset_caches
+
+    # lru_cache-wrapped: `reset_caches` calls `.cache_clear()` on this, so a
+    # bare lambda would fail on teardown rather than on the assertion.
+    fake = functools.lru_cache(maxsize=1)(
+        lambda: {"bsd": "BSD-3-Clause", "apache": "Apache-2.0"})
+    monkeypatch.setattr(L, "_ospac_aliases", fake)
+    reset_caches()
+    try:
+        assert normalize("BSD", SOURCE_NAME).normalized is None
+        assert normalize("Apache", SOURCE_NAME).normalized is None
+    finally:
+        reset_caches()
+
+
+def test_denylisting_a_family_does_not_refuse_its_versioned_members():
+    """"bsd" is refused; `BSD-3-Clause` is a licence and must not be."""
+    for raw in ("BSD-3-Clause", "BSD-2-Clause", "Apache-2.0", "MPL-2.0",
+                "EPL-2.0", "AGPL-3.0-only", "LGPL-2.1-or-later"):
+        assert normalize(raw, SOURCE_NAME).normalized == raw
+
+@pytest.mark.parametrize("raw", [
+    "Apache License", "The Apache License", "BSD License", "GPL License",
+    "GNU General Public License", "GNU Lesser General Public License",
+])
+def test_a_family_written_out_is_refused_like_the_bare_token(raw):
+    """`descriptive_key` strips a leading "The" and the word "Version". It does
+    not strip "License", so "Apache License" is a different key from "apache".
+
+    Denylisting only the bare token left the spelling SBOMs actually use
+    protected by upstream omission -- the exact hole this list was widened to
+    close, one word further along.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized is None
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("MIT License", "MIT"),          # one licence; the word adds no ambiguity
+    ("The MIT License", "MIT"),
+    ("ISC License", "ISC"),
+    ("Zlib License", "Zlib"),
+    ("Apache License 2.0", "Apache-2.0"),        # a version makes it specific
+    ("Apache License, Version 2.0", "Apache-2.0"),
+    ("Eclipse Public License 1.0", "EPL-1.0"),
+])
+def test_refusing_a_family_does_not_refuse_a_licence(raw, expected):
+    """The denylist must cost nothing that names one licence.
+
+    "MIT License" names exactly one, and a version makes any family specific
+    again. Widening the list is only safe if these keep working.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized == expected
+
+
+def test_a_same_overlay_refusal_survives_every_spelling(tmp_path, monkeypatch):
+    """An overlay that maps a name and refuses it in the same file.
+
+    The refusal was subtracted in the exact key space only, so
+    `never_resolve: ["The MIT License"]` left the descriptive key lifted and
+    "MIT License" resolved through the alias the same overlay had just refused.
+    """
+    from ossbomer.core.licenses import reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('aliases:\n  "The MIT License": "LicenseRef-Corp"\n'
+                       'never_resolve:\n  - "The MIT License"\n')
+    monkeypatch.setenv("OSSBOMER_LICENSE_ALIASES", str(overlay))
+    reset_caches()
+    try:
+        for raw in ("The MIT License", "MIT License", "the mit license"):
+            assert normalize(raw, SOURCE_NAME).normalized is None, raw
+    finally:
+        monkeypatch.delenv("OSSBOMER_LICENSE_ALIASES", raising=False)
+        reset_caches()
+
+
+def test_ospac_cannot_lift_a_family_refusal_by_writing_it_out(monkeypatch):
+    """The upstream-drift path, one word further along than the first test.
+
+    ospac adding `apache license -> Apache-2.0` must not make this tool answer
+    "Apache License", for the same reason `apache` must not.
+    """
+    import functools
+
+    import ossbomer.core.licenses as L
+    from ossbomer.core.licenses import reset_caches
+
+    fake = functools.lru_cache(maxsize=1)(
+        lambda: {"apache license": "Apache-2.0", "bsd license": "BSD-3-Clause"})
+    monkeypatch.setattr(L, "_ospac_aliases", fake)
+    reset_caches()
+    try:
+        assert normalize("Apache License", SOURCE_NAME).normalized is None
+        assert normalize("BSD License", SOURCE_NAME).normalized is None
+    finally:
+        reset_caches()
+
+# The families whose SPDX identifiers differ only by version. Named once here,
+# because a name from one of these without a version identifies a family and not
+# a licence -- which is the whole criterion for refusing it.
+VERSIONED_FAMILIES = {
+    "Apache": ["apache", "apache license", "apache software license"],
+    "BSD": ["bsd", "bsd license"],
+    "GPL": ["gpl", "gpl license", "gnu general public license"],
+    "LGPL": ["lgpl", "lgpl license", "gnu lesser general public license",
+             "gnu library general public license"],
+    "AGPL": ["agpl", "agpl license", "gnu affero general public license"],
+    "MPL": ["mpl", "mpl license", "mozilla public license"],
+    "EPL": ["epl", "epl license", "eclipse public license"],
+    "CDDL": ["cddl", "cddl license",
+             "common development and distribution license"],
+}
+
+
+@pytest.mark.parametrize("family,spellings", sorted(VERSIONED_FAMILIES.items()))
+def test_every_versioned_family_is_refused_unversioned(family, spellings):
+    """Generated from the shapes, not from whichever spelling someone remembered.
+
+    Three rounds of review found the denylist short by one spelling each time:
+    the abbreviation, then "<family> License", then the written-out name. Each
+    fix closed the example and left the class, which is what enumeration does.
+
+    A name from a family whose SPDX identifiers differ only by version, carrying
+    no version, identifies a family and not a licence. Every spelling of that
+    shape must be refused, and a leading "The" must not lift it.
+    """
+    for spelling in spellings:
+        for raw in (spelling, spelling.title(), f"The {spelling}",
+                    spelling.upper()):
+            assert normalize(raw, SOURCE_NAME).normalized is None, (
+                f"{raw!r} names the {family} family without a version and "
+                f"resolved anyway")
+
+
+@pytest.mark.parametrize("family,spellings", sorted(VERSIONED_FAMILIES.items()))
+def test_adding_a_version_makes_a_family_name_specific_again(family, spellings):
+    """The other half, and the reason the refusal is safe.
+
+    Refusing a family must never refuse a licence. A version turns any of these
+    back into a name that identifies one thing, and those must keep resolving --
+    that is what most real SBOMs actually carry.
+    """
+    versioned = {
+        "Apache": "Apache License 2.0",
+        "BSD": "BSD-3-Clause",
+        "GPL": "GPL-3.0-or-later",
+        "LGPL": "LGPL-2.1-or-later",
+        "AGPL": "AGPL-3.0-only",
+        "MPL": "MPL-2.0",
+        "EPL": "Eclipse Public License 2.0",
+        "CDDL": "CDDL-1.0",
+    }[family]
+    assert normalize(versioned, SOURCE_NAME).normalized is not None, versioned
+
+@pytest.mark.parametrize("raw", [
+    "(GPL)", "GPL AND MIT", "MIT AND GPL", "GPL, MIT", "GPL/MIT", "GPL || MIT",
+])
+def test_a_refused_name_stays_refused_inside_an_expression(raw):
+    """A refusal matched the whole string only, so putting the name in an
+    expression walked past it.
+
+    "GPL" was refused and "GPL/MIT" returned `GPL-1.0-or-later AND MIT` -- the
+    confident wrong answer the refusal exists to prevent, in the spelling SBOMs
+    most often use for dual licensing. Parentheses did it for a single token.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized is None
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("MIT AND Apache-2.0", "MIT AND Apache-2.0"),
+    ("MIT OR Apache-2.0", "MIT OR Apache-2.0"),
+    ("(MIT)", "MIT"),
+    ("MIT/Apache-2.0", "MIT AND Apache-2.0"),
+    ("Apache-2.0 WITH LLVM-exception", "Apache-2.0 WITH LLVM-exception"),
+    # One name that contains punctuation, and must not be split into operands.
+    ("Apache License, Version 2.0", "Apache-2.0"),
+])
+def test_expressions_of_real_licences_still_resolve(raw, expected):
+    """The operand check runs only on text that parses as an expression, so a
+    name that legitimately contains a comma stays one name."""
+    assert normalize(raw, SOURCE_NAME).normalized == expected
+
+
+def test_an_adopter_refusal_reaches_inside_an_expression(tmp_path, monkeypatch):
+    """Their refusal, their compound. Parenthesising one token was enough to
+    bypass it before."""
+    from ossbomer.core.licenses import ENV_ALIASES, reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('never_resolve:\n  - "MIT"\n')
+    monkeypatch.setenv(ENV_ALIASES, str(overlay))
+    reset_caches()
+    try:
+        for raw in ("MIT", "(MIT)", "MIT AND Apache-2.0", "MIT/Apache-2.0"):
+            assert normalize(raw, SOURCE_NAME).normalized is None, raw
+        assert normalize("ISC AND Apache-2.0", SOURCE_NAME).normalized == \
+            "ISC AND Apache-2.0"
+    finally:
+        monkeypatch.delenv(ENV_ALIASES, raising=False)
+        reset_caches()
+
+
+def test_two_overlays_colliding_on_a_descriptive_key_agree(tmp_path, monkeypatch):
+    """The later overlay wins, and wins for every spelling.
+
+    The back-application rewrote only the merged alias table, leaving the
+    adopter's own table -- which is read first -- holding the earlier value for
+    the exact spelling. So "Apache License, Version 2.0" and "The Apache
+    License, Version 2.0" returned different identifiers.
+    """
+    import os
+
+    from ossbomer.core.licenses import ENV_ALIASES, reset_caches
+
+    first = tmp_path / "a.yaml"
+    first.write_text('aliases:\n  "Apache License, Version 2.0": "LicenseRef-A"\n')
+    second = tmp_path / "b.yaml"
+    second.write_text('aliases:\n  "Apache License 2.0": "LicenseRef-B"\n')
+    monkeypatch.setenv(ENV_ALIASES, f"{first}{os.pathsep}{second}")
+    reset_caches()
+    try:
+        for raw in ("Apache License, Version 2.0",
+                    "The Apache License, Version 2.0",
+                    "Apache License 2.0"):
+            assert normalize(raw, SOURCE_NAME).normalized == "LicenseRef-B", raw
+    finally:
+        monkeypatch.delenv(ENV_ALIASES, raising=False)
         reset_caches()
