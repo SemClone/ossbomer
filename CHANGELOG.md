@@ -22,6 +22,19 @@ follow [Semantic Versioning](https://semver.org/).
 
   Every bundled profile already satisfies this, so the catalog is unaffected. It
   was adopters writing private overlays who paid for the split.
+- A profile was found on a case-insensitive filesystem under a spelling that
+  would not be found on a case-sensitive one. `Acme-Baseline.yaml` declaring
+  `id: acme-baseline` resolved under `--profile acme-baseline` on macOS or
+  Windows and failed with "Profile not found" on Linux — the same overlay
+  working on a laptop and failing in CI.
+
+  `os.path.isfile` answers the filesystem's question rather than this tool's, so
+  the spelling on disk is now confirmed before a path is accepted. That also
+  makes the id/filename rule above mean the same thing everywhere: it had been
+  comparing the name that was asked for rather than the name that exists, so on
+  those platforms it could not see the mismatch it exists to catch. A directory
+  that cannot be listed falls back to the filesystem's answer, so a permissions
+  quirk does not refuse a profile that is there.
 - `Profile not found` now says that profiles resolve by filename and names the
   file it looked for. A correctly written overlay under the wrong filename
   produced a bare "not found", which sends the reader hunting for a missing file
