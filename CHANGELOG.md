@@ -6,6 +6,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-08-20
+
+### Changed
+- `Callable` is imported from `collections.abc` rather than `typing`, which the
+  raised floor makes available.
+
 ### Removed
 - Python 3.9 support. `requires-python` is now `>=3.10`.
 
@@ -21,10 +27,6 @@ follow [Semantic Versioning](https://semver.org/).
   unreachable while 3.9 was supported, which is what let the divergence exist.
 
   3.9 users can pin `ossbomer==2.3.1`, which is the last release supporting it.
-
-### Changed
-- `Callable` is imported from `collections.abc` rather than `typing`, which the
-  raised floor makes available.
 
 ## [2.3.1] - 2026-08-20
 
@@ -716,7 +718,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.3.1...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/SemClone/ossbomer/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/SemClone/ossbomer/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/SemClone/ossbomer/compare/v2.2.2...v2.3.0
 [2.2.2]: https://github.com/SemClone/ossbomer/compare/v2.2.1...v2.2.2
