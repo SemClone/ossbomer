@@ -416,3 +416,79 @@ def test_denylisting_a_family_does_not_refuse_its_versioned_members():
     for raw in ("BSD-3-Clause", "BSD-2-Clause", "Apache-2.0", "MPL-2.0",
                 "EPL-2.0", "AGPL-3.0-only", "LGPL-2.1-or-later"):
         assert normalize(raw, SOURCE_NAME).normalized == raw
+
+@pytest.mark.parametrize("raw", [
+    "Apache License", "The Apache License", "BSD License", "GPL License",
+    "GNU General Public License", "GNU Lesser General Public License",
+])
+def test_a_family_written_out_is_refused_like_the_bare_token(raw):
+    """`descriptive_key` strips a leading "The" and the word "Version". It does
+    not strip "License", so "Apache License" is a different key from "apache".
+
+    Denylisting only the bare token left the spelling SBOMs actually use
+    protected by upstream omission -- the exact hole this list was widened to
+    close, one word further along.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized is None
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("MIT License", "MIT"),          # one licence; the word adds no ambiguity
+    ("The MIT License", "MIT"),
+    ("ISC License", "ISC"),
+    ("Zlib License", "Zlib"),
+    ("Apache License 2.0", "Apache-2.0"),        # a version makes it specific
+    ("Apache License, Version 2.0", "Apache-2.0"),
+    ("Eclipse Public License 1.0", "EPL-1.0"),
+])
+def test_refusing_a_family_does_not_refuse_a_licence(raw, expected):
+    """The denylist must cost nothing that names one licence.
+
+    "MIT License" names exactly one, and a version makes any family specific
+    again. Widening the list is only safe if these keep working.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized == expected
+
+
+def test_a_same_overlay_refusal_survives_every_spelling(tmp_path, monkeypatch):
+    """An overlay that maps a name and refuses it in the same file.
+
+    The refusal was subtracted in the exact key space only, so
+    `never_resolve: ["The MIT License"]` left the descriptive key lifted and
+    "MIT License" resolved through the alias the same overlay had just refused.
+    """
+    from ossbomer.core.licenses import reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('aliases:\n  "The MIT License": "LicenseRef-Corp"\n'
+                       'never_resolve:\n  - "The MIT License"\n')
+    monkeypatch.setenv("OSSBOMER_LICENSE_ALIASES", str(overlay))
+    reset_caches()
+    try:
+        for raw in ("The MIT License", "MIT License", "the mit license"):
+            assert normalize(raw, SOURCE_NAME).normalized is None, raw
+    finally:
+        monkeypatch.delenv("OSSBOMER_LICENSE_ALIASES", raising=False)
+        reset_caches()
+
+
+def test_ospac_cannot_lift_a_family_refusal_by_writing_it_out(monkeypatch):
+    """The upstream-drift path, one word further along than the first test.
+
+    ospac adding `apache license -> Apache-2.0` must not make this tool answer
+    "Apache License", for the same reason `apache` must not.
+    """
+    import functools
+
+    import ossbomer.core.licenses as L
+    from ossbomer.core.licenses import reset_caches
+
+    fake = functools.lru_cache(maxsize=1)(
+        lambda: {"apache license": "Apache-2.0", "bsd license": "BSD-3-Clause"})
+    monkeypatch.setattr(L, "_ospac_aliases", fake)
+    reset_caches()
+    try:
+        assert normalize("Apache License", SOURCE_NAME).normalized is None
+        assert normalize("BSD License", SOURCE_NAME).normalized is None
+    finally:
+        reset_caches()

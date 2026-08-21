@@ -160,6 +160,19 @@ NEVER_RESOLVE: set[str] = {
     # "-like" and "-style" are explicit statements that it is *not* that licence.
     "bsd-like", "bsd style", "bsd-style", "mit-like", "mit style", "mit-style",
     "gpl-like", "gpl style", "apache-like", "apache style",
+    # The same families written out. `descriptive_key` strips a leading "The"
+    # and the word "Version", not the word "License", so "Apache License" is a
+    # different key from "apache" and needs its own entry -- otherwise the bare
+    # token is refused while the spelling most SBOMs actually use is not.
+    #
+    # Only families whose versions differ. "MIT License", "ISC License" and
+    # "Zlib License" name exactly one licence and stay resolvable, and a version
+    # makes any of these specific again: "Apache License 2.0" is a different key
+    # and still resolves.
+    "apache license", "bsd license", "gpl license", "lgpl license",
+    "agpl license", "mpl license", "epl license", "cddl license",
+    "cc license", "gnu license", "gnu general public license",
+    "gnu lesser general public license", "gnu affero general public license",
 }
 
 # Where operators and aliases can be extended without editing this package.
@@ -427,11 +440,18 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     # So an explicit overlay alias lifts the refusal for that name, and nothing
     # else does. `never_resolve` in the same overlay still refuses, because it
     # is the more specific statement of the two.
-    lifted = declared - {
-        _WHITESPACE.sub(" ", str(k)).strip().lower()
-        for overlay in _overlay_sources()
-        for k in (overlay.get("never_resolve") or [])
-    }
+    # Both spellings of the refusal, not just the exact one. An overlay
+    # declaring `aliases: {"The MIT License": ...}` alongside
+    # `never_resolve: ["The MIT License"]` removed the exact key from `lifted`
+    # and left the descriptive one, so "MIT License" resolved through the alias
+    # the same overlay had just refused.
+    refused_here = set()
+    for overlay in _overlay_sources():
+        for k in (overlay.get("never_resolve") or []):
+            squashed_refusal = _WHITESPACE.sub(" ", str(k)).strip().lower()
+            refused_here.add(squashed_refusal)
+            refused_here.add(descriptive_key(squashed_refusal))
+    lifted = declared - refused_here
     never = never - lifted
     never_descriptive = never_descriptive - lifted
 
