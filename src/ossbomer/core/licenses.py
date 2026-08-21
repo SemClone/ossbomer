@@ -137,7 +137,30 @@ ALIASES: dict[str, str] = {
 # rejected by the parser; this list exists for the exceptions to that.
 # FALLBACK, pending SemClone/ospac#89. Which names are too vague to resolve is a
 # property of the licence landscape rather than of this tool.
-NEVER_RESOLVE: set[str] = {"gpl", "gpl+"}
+#
+# Complete enough to enforce the promise this module makes, though. "Nothing is
+# inferred by similarity" was true for most of these only because ospac happened
+# not to carry them -- an upstream release adding `bsd -> BSD-3-Clause` would
+# have made `normalize("BSD")` return a confident wrong answer, silently, and
+# the test protecting it would have failed *after* the behaviour changed rather
+# than instead of it. A promise enforced by someone else's omission is not
+# enforced.
+#
+# Only names that identify a family without identifying a licence belong here.
+# Free text ("see LICENSE file") is unresolvable structurally and needs no entry.
+NEVER_RESOLVE: set[str] = {
+    "gpl", "gpl+",
+    # Version unstated, and the versions differ in obligations.
+    "lgpl", "agpl", "apache", "mpl", "cddl", "epl", "cc",
+    # Which of the family, unstated. BSD alone spans 0/2/3/4-clause.
+    "bsd",
+    # Not licences: a posture, a category, or an absence of one.
+    "public domain", "proprietary", "commercial", "closed source",
+    "open source", "free", "freeware", "shareware", "other", "none",
+    # "-like" and "-style" are explicit statements that it is *not* that licence.
+    "bsd-like", "bsd style", "bsd-style", "mit-like", "mit style", "mit-style",
+    "gpl-like", "gpl style", "apache-like", "apache style",
+}
 
 # Where operators and aliases can be extended without editing this package.
 #
@@ -365,9 +388,13 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     never = set(NEVER_RESOLVE)
     separators = list(SEPARATOR_REWRITES)
     overridden: dict[str, str] = {}
+    declared: set[str] = set()
     for overlay in _overlay_sources():
         for key, value in (overlay.get("aliases") or {}).items():
             add(key, value)
+            squashed_key = _WHITESPACE.sub(" ", str(key)).strip().lower()
+            declared.add(squashed_key)
+            declared.add(descriptive_key(squashed_key))
             overridden[descriptive_key(str(key))] = str(value)
         for key in overlay.get("never_resolve") or []:
             never.add(_WHITESPACE.sub(" ", str(key)).strip().lower())
@@ -391,6 +418,22 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     # License 2.0"` resolve while `"Eclipse Public License 2.0"` was refused,
     # which is the failure the denylist exists to prevent.
     never_descriptive = {descriptive_key(n) for n in never}
+
+    # An adopter who maps a refused name has made a decision about their own
+    # corpus, and overlays win on conflict -- that is documented and tested.
+    # The denylist exists to stop *this tool* guessing, and to stop upstream
+    # data quietly starting to, not to overrule the person running it.
+    #
+    # So an explicit overlay alias lifts the refusal for that name, and nothing
+    # else does. `never_resolve` in the same overlay still refuses, because it
+    # is the more specific statement of the two.
+    lifted = declared - {
+        _WHITESPACE.sub(" ", str(k)).strip().lower()
+        for overlay in _overlay_sources()
+        for k in (overlay.get("never_resolve") or [])
+    }
+    never = never - lifted
+    never_descriptive = never_descriptive - lifted
 
     return aliases, never, tuple(separators), descriptive, never_descriptive
 

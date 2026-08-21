@@ -6,6 +6,32 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- The promise that a vague licence name is never guessed at was being kept by
+  ospac's omission rather than by this tool. `NEVER_RESOLVE` held two entries;
+  "BSD", "LGPL", "Apache", "Public Domain" and the rest stayed unresolved only
+  because ospac happened not to carry them.
+
+  ospac is actively filling in folk spellings
+  ([ospac#88](https://github.com/SemClone/ospac/issues/88),
+  [#89](https://github.com/SemClone/ospac/issues/89)), so a release adding
+  `bsd -> BSD-3-Clause` would have made `normalize("BSD")` return a confident
+  wrong answer — silently, with the test protecting it failing *after* the
+  behaviour changed rather than instead of it. A promise enforced by someone
+  else's omission is not enforced.
+
+  The family names are on the denylist now, checked before any lookup. An
+  adopter overlay still lifts a refusal for a name it maps explicitly: the
+  denylist stops this tool guessing and stops upstream data guessing on its
+  behalf, not the person running it. `never_resolve` in the same overlay is the
+  more specific statement and still wins.
+
+### Changed
+- A test asserted which lookup path resolved a real licence, which is ospac's
+  data to decide. ospac 1.7.0 moved one spelling between paths and the test
+  failed on a release nobody here made. It now builds its own alias and asserts
+  the mechanism instead of upstream's contents.
+
 ## [2.4.1] - 2026-08-21
 
 ### Changed

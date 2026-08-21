@@ -315,3 +315,104 @@ def test_normalization_works_without_ospac_at_all(monkeypatch):
     finally:
         monkeypatch.setattr(builtins, "__import__", real_import)
         reset_caches()
+
+# ---- the promise must be ours to keep ----------------------------------------
+
+def test_every_refused_name_is_refused_by_us_not_by_upstreams_omission():
+    """`test_ambiguous_text_is_never_guessed` above states a promise: these names
+    are never guessed at. Most of them used to hold only because ospac did not
+    happen to carry them.
+
+    That is not a promise, it is a coincidence. ospac is actively adding folk
+    spellings (SemClone/ospac#88, #89), and a release adding `bsd ->
+    BSD-3-Clause` would have made `normalize("BSD")` return a confident wrong
+    answer -- with the test failing *after* the behaviour changed rather than
+    instead of it.
+
+    Each family name is now on the denylist, which is checked before any lookup,
+    so no upstream data can reach them.
+    """
+    from ossbomer.core.licenses import NEVER_RESOLVE
+
+    family_names = ["gpl", "lgpl", "agpl", "bsd", "apache", "mpl", "epl", "cddl",
+                    "public domain", "proprietary", "commercial", "bsd-like"]
+    missing = [n for n in family_names if n not in NEVER_RESOLVE]
+    assert not missing, f"promised as never-guessed but not denylisted: {missing}"
+
+
+def test_the_denylist_stops_the_tool_guessing_not_the_adopter_deciding(tmp_path,
+                                                                      monkeypatch):
+    """Who the refusal is aimed at.
+
+    The denylist exists so *this tool* never invents an answer, and so upstream
+    data cannot quietly start inventing one on its behalf. It is not there to
+    overrule the person running it: an adopter who maps "bsd" has made a
+    decision about their own corpus, and overlays win on conflict.
+
+    So an explicit overlay alias lifts the refusal for that name and nothing
+    else does -- not the shipped tables, not ospac's.
+    """
+    from ossbomer.core.licenses import reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('aliases:\n  "bsd": "BSD-3-Clause"\n')
+    monkeypatch.setenv("OSSBOMER_LICENSE_ALIASES", str(overlay))
+    reset_caches()
+    try:
+        # The name the adopter mapped: their call, honoured.
+        assert normalize("BSD", SOURCE_NAME).normalized == "BSD-3-Clause"
+        # A name they said nothing about: still refused.
+        assert normalize("Apache", SOURCE_NAME).normalized is None
+        assert normalize("MIT", SOURCE_NAME).normalized == "MIT"
+    finally:
+        monkeypatch.delenv("OSSBOMER_LICENSE_ALIASES", raising=False)
+        reset_caches()
+
+
+def test_never_resolve_beats_an_alias_in_the_same_overlay(tmp_path, monkeypatch):
+    """Both directions in one file. `never_resolve` is the more specific
+    statement, so it wins over an alias for the same name."""
+    from ossbomer.core.licenses import reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('aliases:\n  "bsd": "BSD-3-Clause"\n'
+                       'never_resolve:\n  - "bsd"\n')
+    monkeypatch.setenv("OSSBOMER_LICENSE_ALIASES", str(overlay))
+    reset_caches()
+    try:
+        assert normalize("BSD", SOURCE_NAME).normalized is None
+    finally:
+        monkeypatch.delenv("OSSBOMER_LICENSE_ALIASES", raising=False)
+        reset_caches()
+
+
+def test_ospac_data_cannot_lift_a_refusal(tmp_path, monkeypatch):
+    """The case this hardening is for.
+
+    ospac is filling in folk spellings (SemClone/ospac#88, #89). A release
+    adding `bsd -> BSD-3-Clause` must not make this tool start answering "BSD",
+    because nothing about that document changed -- only somebody else's data.
+    """
+    import functools
+
+    import ossbomer.core.licenses as L
+    from ossbomer.core.licenses import reset_caches
+
+    # lru_cache-wrapped: `reset_caches` calls `.cache_clear()` on this, so a
+    # bare lambda would fail on teardown rather than on the assertion.
+    fake = functools.lru_cache(maxsize=1)(
+        lambda: {"bsd": "BSD-3-Clause", "apache": "Apache-2.0"})
+    monkeypatch.setattr(L, "_ospac_aliases", fake)
+    reset_caches()
+    try:
+        assert normalize("BSD", SOURCE_NAME).normalized is None
+        assert normalize("Apache", SOURCE_NAME).normalized is None
+    finally:
+        reset_caches()
+
+
+def test_denylisting_a_family_does_not_refuse_its_versioned_members():
+    """"bsd" is refused; `BSD-3-Clause` is a licence and must not be."""
+    for raw in ("BSD-3-Clause", "BSD-2-Clause", "Apache-2.0", "MPL-2.0",
+                "EPL-2.0", "AGPL-3.0-only", "LGPL-2.1-or-later"):
+        assert normalize(raw, SOURCE_NAME).normalized == raw
