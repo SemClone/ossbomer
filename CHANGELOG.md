@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-08-21
+
+### Changed
+- A test asserted which lookup path resolved a real licence, which is ospac's
+  data to decide. ospac 1.7.0 moved one spelling between paths and the test
+  failed on a release nobody here made. It now builds its own alias and asserts
+  the mechanism instead of upstream's contents.
+
 ### Fixed
 - The promise that a vague licence name is never guessed at was being kept by
   ospac's omission rather than by this tool. `NEVER_RESOLVE` held two entries;
@@ -25,12 +33,6 @@ follow [Semantic Versioning](https://semver.org/).
   denylist stops this tool guessing and stops upstream data guessing on its
   behalf, not the person running it. `never_resolve` in the same overlay is the
   more specific statement and still wins.
-
-### Changed
-- A test asserted which lookup path resolved a real licence, which is ospac's
-  data to decide. ospac 1.7.0 moved one spelling between paths and the test
-  failed on a release nobody here made. It now builds its own alias and asserts
-  the mechanism instead of upstream's contents.
 
 ## [2.4.1] - 2026-08-21
 
@@ -785,7 +787,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.4.2...HEAD
+[2.4.2]: https://github.com/SemClone/ossbomer/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/SemClone/ossbomer/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/SemClone/ossbomer/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/SemClone/ossbomer/compare/v2.3.0...v2.3.1

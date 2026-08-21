@@ -14,4 +14,4 @@ Extensibility has two axes:
     - plugins  (code): new BOM types (aiBOM, eBOM, cBOM, ...) ship as optional libs
 """
 
-__version__ = "2.4.1"
+__version__ = "2.4.2"
