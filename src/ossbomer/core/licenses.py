@@ -380,7 +380,7 @@ def _overlay_sources() -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
-                       dict[str, str], set[str]]:
+                       dict[str, str], set[str], dict[str, str], set[str]]:
     """Built-in tables merged with every overlay. Overlays win on conflict.
 
     Returns the exact tables and their descriptive-key views. The views are
@@ -394,6 +394,8 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     """
     aliases: dict[str, str] = {}
     descriptive: dict[str, str] = {}
+    adopter_aliases: dict[str, str] = {}
+    adopter_refusals: set[str] = set()
 
     def add(key: str, value: str) -> None:
         squashed = _WHITESPACE.sub(" ", str(key)).strip().lower()
@@ -411,16 +413,18 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     never = set(NEVER_RESOLVE)
     separators = list(SEPARATOR_REWRITES)
     overridden: dict[str, str] = {}
-    declared: set[str] = set()
     for overlay in _overlay_sources():
         for key, value in (overlay.get("aliases") or {}).items():
             add(key, value)
             squashed_key = _WHITESPACE.sub(" ", str(key)).strip().lower()
-            declared.add(squashed_key)
-            declared.add(descriptive_key(squashed_key))
+            adopter_aliases[squashed_key] = str(value)
+            adopter_aliases[descriptive_key(squashed_key)] = str(value)
             overridden[descriptive_key(str(key))] = str(value)
         for key in overlay.get("never_resolve") or []:
-            never.add(_WHITESPACE.sub(" ", str(key)).strip().lower())
+            squashed_refusal = _WHITESPACE.sub(" ", str(key)).strip().lower()
+            never.add(squashed_refusal)
+            adopter_refusals.add(squashed_refusal)
+            adopter_refusals.add(descriptive_key(squashed_refusal))
         for pattern, operator in (overlay.get("separators") or {}).items():
             separators.append((re.compile(str(pattern)), str(operator)))
 
@@ -442,30 +446,14 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
     # which is the failure the denylist exists to prevent.
     never_descriptive = {descriptive_key(n) for n in never}
 
-    # An adopter who maps a refused name has made a decision about their own
-    # corpus, and overlays win on conflict -- that is documented and tested.
-    # The denylist exists to stop *this tool* guessing, and to stop upstream
-    # data quietly starting to, not to overrule the person running it.
-    #
-    # So an explicit overlay alias lifts the refusal for that name, and nothing
-    # else does. `never_resolve` in the same overlay still refuses, because it
-    # is the more specific statement of the two.
-    # Both spellings of the refusal, not just the exact one. An overlay
-    # declaring `aliases: {"The MIT License": ...}` alongside
-    # `never_resolve: ["The MIT License"]` removed the exact key from `lifted`
-    # and left the descriptive one, so "MIT License" resolved through the alias
-    # the same overlay had just refused.
-    refused_here = set()
-    for overlay in _overlay_sources():
-        for k in (overlay.get("never_resolve") or []):
-            squashed_refusal = _WHITESPACE.sub(" ", str(k)).strip().lower()
-            refused_here.add(squashed_refusal)
-            refused_here.add(descriptive_key(squashed_refusal))
-    lifted = declared - refused_here
-    never = never - lifted
-    never_descriptive = never_descriptive - lifted
+    # What the adopter said, kept apart from the merged tables so `normalize`
+    # can consult it before anything else. Subtracting it from the denylist
+    # instead produced two bugs in one round: an override lost to the SPDX
+    # parser, which runs earlier, and lifting one spelling left the other
+    # refused. Order of precedence belongs where precedence is decided.
 
-    return aliases, never, tuple(separators), descriptive, never_descriptive
+    return (aliases, never, tuple(separators), descriptive, never_descriptive,
+            adopter_aliases, adopter_refusals)
 
 
 def reset_caches() -> None:
@@ -587,10 +575,33 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
         return LicenseDeclaration(raw=text, source=source, normalized=None,
                                   method=DECLARED_UNKNOWN)
 
-    aliases, never, separators, descriptive_aliases, never_descriptive = _tables()
+    (aliases, never, separators, descriptive_aliases, never_descriptive,
+     adopter_aliases, adopter_refusals) = _tables()
     squashed_early = _WHITESPACE.sub(" ", text).lower()
 
     descriptive = descriptive_key(squashed_early)
+
+    # -1. What the adopter said, before anything else looks at it.
+    #
+    #     They know their corpus; this tool does not get to overrule them, and
+    #     neither does the SPDX parser. An override used to be applied by
+    #     subtracting the name from the denylist further down, which left the
+    #     parser answering first: an overlay mapping "gpl" got the parser's
+    #     deprecated `GPL-1.0-or-later` rather than the identifier they chose.
+    #
+    #     A refusal in the same overlay is the more specific statement and is
+    #     checked first. Both are matched in either spelling, so a leading "The"
+    #     cannot make an adopter's own rule apply to one form and not the other.
+    if squashed_early in adopter_refusals or descriptive in adopter_refusals:
+        return LicenseDeclaration(text, source, None, UNRESOLVED)
+    adopted = adopter_aliases.get(squashed_early)
+    if adopted:
+        return LicenseDeclaration(text, source, adopted, VIA_ALIAS)
+    adopted = adopter_aliases.get(descriptive)
+    if adopted:
+        # Matched through the prose spelling, and recorded as such: the method
+        # says how it matched, not who declared it.
+        return LicenseDeclaration(text, source, adopted, VIA_DESCRIPTIVE)
 
     # 0. Refuse anything on the denylist before anything else gets a chance to
     #    resolve it. Bare "GPL" is accepted upstream as GPL-1.0-or-later, and
