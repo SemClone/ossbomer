@@ -6,6 +6,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-08-21
+
+### Changed
+- `docs/guide/custom-profiles.md` states the filename rule where a profile is
+  first written. `docs/reference/profile-format.md` already said "match the
+  filename"; it now says it is required and enforced.
+
 ### Fixed
 - A profile whose `id` did not match its filename loaded anyway and then
   reported the other name. Lookup resolves by filename; every finding, JSON
@@ -39,11 +46,6 @@ follow [Semantic Versioning](https://semver.org/).
   file it looked for. A correctly written overlay under the wrong filename
   produced a bare "not found", which sends the reader hunting for a missing file
   rather than at the name of the one they have.
-
-### Changed
-- `docs/guide/custom-profiles.md` states the filename rule where a profile is
-  first written. `docs/reference/profile-format.md` already said "match the
-  filename"; it now says it is required and enforced.
 
 ## [2.4.0] - 2026-08-20
 
@@ -757,7 +759,8 @@ profile-driven `ossbomer` distribution.
   classification moves to `ospac`; package risk to a forthcoming open PURL API).
 - ~2 MB of bundled SPDX/CycloneDX schema files (the parser libraries carry their own).
 
-[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/SemClone/ossbomer/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/SemClone/ossbomer/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/SemClone/ossbomer/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/SemClone/ossbomer/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/SemClone/ossbomer/compare/v2.2.2...v2.3.0
