@@ -6,6 +6,26 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- Python 3.9 support. `requires-python` is now `>=3.10`.
+
+  It had become a correctness problem rather than a maintenance one. ospac
+  requires Python 3.10 from 1.4.3, so a 3.9 environment resolved to ospac 1.2.3
+  and got **712 license mappings against 1471** on any newer interpreter — the
+  same SBOM, the same profile, licenses reported unresolvable on one machine and
+  resolved on another, with nothing said about why. Supporting an interpreter
+  that has been end-of-life since 2025-10-31 was not worth results that depend
+  on which Python installed the dependency.
+
+  The `[oslc]` extra is floored at `ospac>=1.4.3` accordingly. That floor was
+  unreachable while 3.9 was supported, which is what let the divergence exist.
+
+  3.9 users can pin `ossbomer==2.3.1`, which is the last release supporting it.
+
+### Changed
+- `Callable` is imported from `collections.abc` rather than `typing`, which the
+  raised floor makes available.
+
 ## [2.3.1] - 2026-08-20
 
 ### Added
