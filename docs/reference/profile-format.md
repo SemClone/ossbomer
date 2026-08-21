@@ -63,7 +63,7 @@ scoring:
 
 | Key | Required | Description |
 | --- | -------- | ----------- |
-| `id` | yes | Stable identifier, and what `--profile` takes. Match the filename. |
+| `id` | yes | Stable identifier, and what `--profile` takes. **Must** match the filename — a profile is found by filename, and a mismatch is refused when it loads. |
 | `name` | yes | Human-readable name, shown in reports and `ossbomer profiles`. |
 | `version` | no | Version of the standard this tracks, not of ossbomer. |
 | `sources` | no | Where the requirements come from: `name`, `ref`, `url`. Worth filling in, since it is how a reader checks your work. |
