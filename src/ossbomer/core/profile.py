@@ -142,16 +142,39 @@ def _search_dirs(extra: list[str] | None = None) -> list[str]:
     return dirs
 
 
+def _exists_exactly(path: str) -> bool:
+    """Whether `path` names a file whose spelling on disk is exactly this.
+
+    `os.path.isfile` answers the filesystem's question, not ours. macOS and
+    Windows are case-insensitive, so a profile written as `Acme-Baseline.yaml`
+    is found there by `--profile acme-baseline` and not found on Linux -- the
+    same overlay working on a laptop and failing in CI, which is the kind of
+    environment-dependent answer this tool exists to avoid.
+
+    Listing the directory costs one syscall on a path already being stat'ed, and
+    makes the id/filename rule mean the same thing on every platform.
+    """
+    if not os.path.isfile(path):
+        return False
+    directory = os.path.dirname(path) or "."
+    try:
+        return os.path.basename(path) in os.listdir(directory)
+    except OSError:
+        # Unreadable directory: fall back to what the filesystem said rather
+        # than refusing a profile over a permissions quirk.
+        return True
+
+
 def _resolve_path(name_or_path: str, extra_dirs: list[str] | None) -> str:
-    if os.path.isfile(name_or_path):
+    if _exists_exactly(name_or_path):
         return name_or_path
     for d in _search_dirs(extra_dirs):
         for ext in (".yaml", ".yml"):
             cand = os.path.join(d, name_or_path + ext)
-            if os.path.isfile(cand):
+            if _exists_exactly(cand):
                 return cand
         cand = os.path.join(d, name_or_path)
-        if os.path.isfile(cand):
+        if _exists_exactly(cand):
             return cand
     raise ProfileError(
         f"Profile not found: {name_or_path!r}. Profiles resolve by filename, so "

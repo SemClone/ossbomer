@@ -114,3 +114,38 @@ def test_every_bundled_profile_already_agrees(pid):
     """This must cost the catalog nothing. If a bundled profile ever fails here
     it is the profile that is wrong, not the check."""
     assert load_profile(pid).id == pid
+
+def test_the_filename_rule_does_not_depend_on_the_filesystem(tmp_path):
+    """macOS and Windows are case-insensitive; Linux is not.
+
+    `os.path.isfile` answers the filesystem's question rather than ours, so
+    `Acme-Baseline.yaml` was found by `--profile acme-baseline` on a laptop and
+    not found in CI -- the same overlay giving two answers depending on where it
+    ran, which is the class of bug this project keeps having to close.
+
+    Refused everywhere now. On a case-sensitive filesystem this was already the
+    behaviour, so the test passes there for the original reason.
+    """
+    _write(tmp_path, "Acme-Baseline.yaml", "acme-baseline")
+    with pytest.raises(ProfileError, match="Profile not found"):
+        load_profile("acme-baseline", [str(tmp_path)])
+
+
+def test_the_exact_spelling_still_resolves(tmp_path):
+    """The check must not refuse the name it was given correctly."""
+    _write(tmp_path, "Acme-Baseline.yaml", "Acme-Baseline")
+    assert load_profile("Acme-Baseline", [str(tmp_path)]).id == "Acme-Baseline"
+
+
+def test_an_unreadable_directory_does_not_refuse_a_real_profile(tmp_path, monkeypatch):
+    """Listing the directory is how the spelling is confirmed. If that fails for
+    a reason unrelated to the profile -- permissions, a racing unlink -- fall
+    back to what the filesystem said rather than refusing a file that is there.
+    """
+    _write(tmp_path, "acme-baseline.yaml", "acme-baseline")
+
+    def boom(_):
+        raise PermissionError("nope")
+
+    monkeypatch.setattr("ossbomer.core.profile.os.listdir", boom)
+    assert load_profile("acme-baseline", [str(tmp_path)]).id == "acme-baseline"
