@@ -225,8 +225,14 @@ def test_an_overlay_file_can_add_aliases(tmp_path, monkeypatch):
         # An overlay wins over a built-in refusal, in both directions.
         assert normalize("BSD", SOURCE_NAME).normalized == "BSD-3-Clause"
         assert normalize("MIT", SOURCE_NAME).normalized is None
-        assert normalize("Apache-2.0 plus MIT", SOURCE_NAME).normalized == \
-            "Apache-2.0 AND MIT"
+        # The separator rewrite itself, on operands the overlay says nothing
+        # about. It used to use MIT, which the same overlay refuses -- so it
+        # asserted that a refused operand resolves inside a compound, which
+        # is the hole the operand check closed.
+        assert normalize("Apache-2.0 plus ISC", SOURCE_NAME).normalized == \
+            "Apache-2.0 AND ISC"
+        # And the refusal reaches inside the compound, which is the point.
+        assert normalize("Apache-2.0 plus MIT", SOURCE_NAME).normalized is None
     finally:
         monkeypatch.delenv(ENV_ALIASES, raising=False)
         reset_caches()
@@ -549,3 +555,78 @@ def test_adding_a_version_makes_a_family_name_specific_again(family, spellings):
         "CDDL": "CDDL-1.0",
     }[family]
     assert normalize(versioned, SOURCE_NAME).normalized is not None, versioned
+
+@pytest.mark.parametrize("raw", [
+    "(GPL)", "GPL AND MIT", "MIT AND GPL", "GPL, MIT", "GPL/MIT", "GPL || MIT",
+])
+def test_a_refused_name_stays_refused_inside_an_expression(raw):
+    """A refusal matched the whole string only, so putting the name in an
+    expression walked past it.
+
+    "GPL" was refused and "GPL/MIT" returned `GPL-1.0-or-later AND MIT` -- the
+    confident wrong answer the refusal exists to prevent, in the spelling SBOMs
+    most often use for dual licensing. Parentheses did it for a single token.
+    """
+    assert normalize(raw, SOURCE_NAME).normalized is None
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("MIT AND Apache-2.0", "MIT AND Apache-2.0"),
+    ("MIT OR Apache-2.0", "MIT OR Apache-2.0"),
+    ("(MIT)", "MIT"),
+    ("MIT/Apache-2.0", "MIT AND Apache-2.0"),
+    ("Apache-2.0 WITH LLVM-exception", "Apache-2.0 WITH LLVM-exception"),
+    # One name that contains punctuation, and must not be split into operands.
+    ("Apache License, Version 2.0", "Apache-2.0"),
+])
+def test_expressions_of_real_licences_still_resolve(raw, expected):
+    """The operand check runs only on text that parses as an expression, so a
+    name that legitimately contains a comma stays one name."""
+    assert normalize(raw, SOURCE_NAME).normalized == expected
+
+
+def test_an_adopter_refusal_reaches_inside_an_expression(tmp_path, monkeypatch):
+    """Their refusal, their compound. Parenthesising one token was enough to
+    bypass it before."""
+    from ossbomer.core.licenses import ENV_ALIASES, reset_caches
+
+    overlay = tmp_path / "aliases.yaml"
+    overlay.write_text('never_resolve:\n  - "MIT"\n')
+    monkeypatch.setenv(ENV_ALIASES, str(overlay))
+    reset_caches()
+    try:
+        for raw in ("MIT", "(MIT)", "MIT AND Apache-2.0", "MIT/Apache-2.0"):
+            assert normalize(raw, SOURCE_NAME).normalized is None, raw
+        assert normalize("ISC AND Apache-2.0", SOURCE_NAME).normalized == \
+            "ISC AND Apache-2.0"
+    finally:
+        monkeypatch.delenv(ENV_ALIASES, raising=False)
+        reset_caches()
+
+
+def test_two_overlays_colliding_on_a_descriptive_key_agree(tmp_path, monkeypatch):
+    """The later overlay wins, and wins for every spelling.
+
+    The back-application rewrote only the merged alias table, leaving the
+    adopter's own table -- which is read first -- holding the earlier value for
+    the exact spelling. So "Apache License, Version 2.0" and "The Apache
+    License, Version 2.0" returned different identifiers.
+    """
+    import os
+
+    from ossbomer.core.licenses import ENV_ALIASES, reset_caches
+
+    first = tmp_path / "a.yaml"
+    first.write_text('aliases:\n  "Apache License, Version 2.0": "LicenseRef-A"\n')
+    second = tmp_path / "b.yaml"
+    second.write_text('aliases:\n  "Apache License 2.0": "LicenseRef-B"\n')
+    monkeypatch.setenv(ENV_ALIASES, f"{first}{os.pathsep}{second}")
+    reset_caches()
+    try:
+        for raw in ("Apache License, Version 2.0",
+                    "The Apache License, Version 2.0",
+                    "Apache License 2.0"):
+            assert normalize(raw, SOURCE_NAME).normalized == "LicenseRef-B", raw
+    finally:
+        monkeypatch.delenv(ENV_ALIASES, raising=False)
+        reset_caches()

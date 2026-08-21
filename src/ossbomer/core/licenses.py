@@ -439,6 +439,15 @@ def _tables() -> tuple[dict[str, str], set[str], tuple[tuple[Any, str], ...],
             replacement = overridden.get(descriptive_key(key))
             if replacement is not None:
                 aliases[key] = replacement
+        # And the adopter's own table, which `normalize` reads first. Rewriting
+        # only the merged one left a stale exact-spelling entry answering ahead
+        # of it: with two overlays declaring keys that share a descriptive key,
+        # "Apache License, Version 2.0" got the earlier overlay's value while
+        # "The Apache License, Version 2.0" got the later one.
+        for key in list(adopter_aliases):
+            replacement = overridden.get(descriptive_key(key))
+            if replacement is not None:
+                adopter_aliases[key] = replacement
 
     # A denylist entry has to refuse the spellings the descriptive step would
     # otherwise reach. Refusing only the exact string let `"The Eclipse Public
@@ -545,6 +554,32 @@ def _index() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     return by_key, by_scancode, by_superseded
 
 
+_EXPRESSION_SPLIT = re.compile(r"[()]|\b(?:AND|OR|WITH)\b", re.IGNORECASE)
+
+
+def _refused_operand(text: str, refusals: set[str]) -> str | None:
+    """The first operand of `text` that is refused, if any.
+
+    A refusal was matched against the whole string, so putting a refused name
+    inside an expression walked straight past it: "GPL" was refused and
+    "GPL/MIT" resolved to `GPL-1.0-or-later AND MIT` -- the confident wrong
+    answer the refusal exists to prevent, in the spelling SBOMs most often use
+    for dual licensing. Parentheses did the same for one token: "(GPL)".
+
+    Only called on text that parses as an expression, so the operands are known
+    to be operands. Splitting an arbitrary string on punctuation would break
+    names that legitimately contain it -- "Apache License, Version 2.0" is one
+    name, not two.
+    """
+    for token in _EXPRESSION_SPLIT.split(text):
+        candidate = _WHITESPACE.sub(" ", token).strip().lower()
+        if not candidate:
+            continue
+        if candidate in refusals or descriptive_key(candidate) in refusals:
+            return candidate
+    return None
+
+
 def _canonical_expression(text: str) -> str | None:
     """Return the canonical SPDX rendering of `text`, or None if it is not one."""
     try:
@@ -618,8 +653,12 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     #    deliberately, a well-formed expression sitting in the free-text slot.
     #    `+`, `-or-later`, `-only`, lowercase and/or/with, and nesting are all
     #    handled by the parser itself and need nothing here.
+    all_refusals = never | never_descriptive | adopter_refusals
+
     canonical = _canonical_expression(text)
     if canonical:
+        if _refused_operand(text, all_refusals):
+            return LicenseDeclaration(text, source, None, UNRESOLVED)
         return LicenseDeclaration(text, source, canonical, VIA_EXPRESSION)
 
     # 1b. Named, but not precisely enough to be an identifier. Above every
@@ -641,6 +680,10 @@ def normalize(raw: str, source: str = SOURCE_NAME) -> LicenseDeclaration:
     if rewritten != text:
         canonical = _canonical_expression(rewritten)
         if canonical:
+            # Checked on the rewritten form: step 0 saw "GPL/MIT", whose
+            # operands only become visible once the separator is an operator.
+            if _refused_operand(rewritten, all_refusals):
+                return LicenseDeclaration(text, source, None, UNRESOLVED)
             return LicenseDeclaration(text, source, canonical, VIA_SEPARATOR)
 
     by_key, by_scancode, by_superseded = _index()
