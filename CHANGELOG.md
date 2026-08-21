@@ -6,6 +6,32 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- A profile whose `id` did not match its filename loaded anyway and then
+  reported the other name. Lookup resolves by filename; every finding, JSON
+  report and SARIF run carries the `id`, so a file named `my-policy.yaml`
+  declaring `id: acme-baseline` worked under `--profile my-policy` and said
+  `acme-baseline` throughout — grepping CI output for the name that was invoked
+  found nothing. `extends` resolves by filename while `excludes` targets the
+  `id`, so composition saw the same split.
+
+  A mismatch is now refused when the profile loads, naming both and either fix.
+  Refused rather than reconciled: making lookup consult `id` means reading every
+  candidate file in every search directory and turns two files claiming one id
+  into an ambiguity someone has to resolve.
+
+  Every bundled profile already satisfies this, so the catalog is unaffected. It
+  was adopters writing private overlays who paid for the split.
+- `Profile not found` now says that profiles resolve by filename and names the
+  file it looked for. A correctly written overlay under the wrong filename
+  produced a bare "not found", which sends the reader hunting for a missing file
+  rather than at the name of the one they have.
+
+### Changed
+- `docs/guide/custom-profiles.md` states the filename rule where a profile is
+  first written. `docs/reference/profile-format.md` already said "match the
+  filename"; it now says it is required and enforced.
+
 ## [2.4.0] - 2026-08-20
 
 ### Changed

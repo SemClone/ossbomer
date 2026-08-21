@@ -38,6 +38,12 @@ answers all three questions.
 
 Three fields of identity and one rule:
 
+{: .warning }
+**Name the file after the `id`.** A profile is found by filename, not by the
+`id` inside it, so `id: acme-minimum` has to live in `acme-minimum.yaml` (or
+`.yml`). A mismatch is refused when the profile loads, naming both and either
+fix — it used to load and then report the other name in every finding.
+
 ```yaml
 id: acme-minimum
 name: ACME internal SBOM minimum

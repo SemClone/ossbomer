@@ -153,7 +153,11 @@ def _resolve_path(name_or_path: str, extra_dirs: list[str] | None) -> str:
         cand = os.path.join(d, name_or_path)
         if os.path.isfile(cand):
             return cand
-    raise ProfileError(f"Profile not found: {name_or_path!r} (searched {_search_dirs(extra_dirs)})")
+    raise ProfileError(
+        f"Profile not found: {name_or_path!r}. Profiles resolve by filename, so "
+        f"this expects {name_or_path}.yaml in one of {_search_dirs(extra_dirs)}. "
+        f"A file declaring `id: {name_or_path}` under a different name will not "
+        f"be found.")
 
 
 def _parse_license_rule(raw: dict[str, Any]) -> LicenseRule:
@@ -249,6 +253,27 @@ def load_profile(name_or_path: str, extra_dirs: list[str] | None = None,
         data = yaml.safe_load(fh) or {}
     if "id" not in data:
         raise ProfileError(f"{path}: profile is missing an 'id'")
+
+    # A profile has one identity spelled twice, and nothing checked the two
+    # agreed. `_resolve_path` finds it by filename; every finding, report and
+    # SARIF run then carries `id`. A file named `my-policy.yaml` declaring
+    # `id: acme-baseline` loaded happily under `--profile my-policy` and
+    # reported `acme-baseline` throughout, so grepping CI output for the name
+    # that was invoked found nothing. `extends` resolves by filename while
+    # `excludes` targets the id, so composition saw the split too.
+    #
+    # Refused rather than reconciled. Making lookup consult `id` means reading
+    # every candidate file in every search directory, and turns two files
+    # claiming one id into an ambiguity someone has to resolve. Every bundled
+    # profile already satisfies this, so it costs the catalog nothing -- it is
+    # adopters writing overlays who were paying for the split.
+    stem = os.path.splitext(os.path.basename(path))[0]
+    if data["id"] != stem:
+        raise ProfileError(
+            f"{path}: declares id {data['id']!r} but a profile is resolved by "
+            f"filename, so it must be named {data['id']}.yaml -- or the id "
+            f"changed to {stem!r} to match the file it is in.")
+
     if data["id"] in _seen:
         raise ProfileError(f"circular extends detected at {data['id']!r}")
     _seen.add(data["id"])
