@@ -61,11 +61,23 @@ def test_case_spacing_and_punctuation_do_not_matter(raw):
     assert normalize(raw, SOURCE_NAME).normalized == "Apache-2.0"
 
 
-def test_the_method_records_how_it_matched():
+def test_the_method_records_how_it_matched(overlay):
     """A prose match is not the same event as an exact alias hit, and the record
-    of what happened is what lets a rule tell them apart later."""
-    assert normalize("Apache License, Version 2.0", SOURCE_NAME).method == VIA_ALIAS
-    assert normalize("The Apache License, Version 2.0", SOURCE_NAME).method == VIA_DESCRIPTIVE
+    of what happened is what lets a rule tell them apart later.
+
+    Exercised through an overlay rather than a shipped licence. This asserted
+    that "The Apache License, Version 2.0" matched by descriptive key, which was
+    true until ospac 1.7.0 added that exact spelling to its aliases -- then it
+    matched at the exact step instead and the test failed, on a release nobody
+    here made.
+
+    Which path resolves a real licence is ospac's data to decide and may change
+    with any release. Whether the two paths are told apart is this module's
+    behaviour, so the fixture is local and the assertion is stable.
+    """
+    overlay('aliases:\n  "zzz test licence 1.0": "LicenseRef-ZZZ"\n')
+    assert normalize("zzz test licence 1.0", SOURCE_NAME).method == VIA_ALIAS
+    assert normalize("The ZZZ Test Licence, Version 1.0", SOURCE_NAME).method == VIA_DESCRIPTIVE
     assert normalize("Apache-2.0", SOURCE_NAME).method == VIA_EXPRESSION
 
 
