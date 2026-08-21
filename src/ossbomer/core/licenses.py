@@ -173,6 +173,16 @@ NEVER_RESOLVE: set[str] = {
     "agpl license", "mpl license", "epl license", "cddl license",
     "cc license", "gnu license", "gnu general public license",
     "gnu lesser general public license", "gnu affero general public license",
+    # And spelled out in full. Three rounds of review found this list short by
+    # one spelling each time -- abbreviations, then "<family> License", now the
+    # written-out names -- so `test_every_versioned_family_is_refused_unversioned`
+    # generates the shapes from SPDX data rather than trusting this list to be
+    # complete. Entries here are what that test requires; add to both or neither.
+    "eclipse public license", "mozilla public license",
+    "common development and distribution license",
+    "common public license", "eclipse distribution license",
+    "apache software license", "the apache software license",
+    "creative commons", "gnu library general public license",
 }
 
 # Where operators and aliases can be extended without editing this package.

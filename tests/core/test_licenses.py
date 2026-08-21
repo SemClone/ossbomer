@@ -492,3 +492,60 @@ def test_ospac_cannot_lift_a_family_refusal_by_writing_it_out(monkeypatch):
         assert normalize("BSD License", SOURCE_NAME).normalized is None
     finally:
         reset_caches()
+
+# The families whose SPDX identifiers differ only by version. Named once here,
+# because a name from one of these without a version identifies a family and not
+# a licence -- which is the whole criterion for refusing it.
+VERSIONED_FAMILIES = {
+    "Apache": ["apache", "apache license", "apache software license"],
+    "BSD": ["bsd", "bsd license"],
+    "GPL": ["gpl", "gpl license", "gnu general public license"],
+    "LGPL": ["lgpl", "lgpl license", "gnu lesser general public license",
+             "gnu library general public license"],
+    "AGPL": ["agpl", "agpl license", "gnu affero general public license"],
+    "MPL": ["mpl", "mpl license", "mozilla public license"],
+    "EPL": ["epl", "epl license", "eclipse public license"],
+    "CDDL": ["cddl", "cddl license",
+             "common development and distribution license"],
+}
+
+
+@pytest.mark.parametrize("family,spellings", sorted(VERSIONED_FAMILIES.items()))
+def test_every_versioned_family_is_refused_unversioned(family, spellings):
+    """Generated from the shapes, not from whichever spelling someone remembered.
+
+    Three rounds of review found the denylist short by one spelling each time:
+    the abbreviation, then "<family> License", then the written-out name. Each
+    fix closed the example and left the class, which is what enumeration does.
+
+    A name from a family whose SPDX identifiers differ only by version, carrying
+    no version, identifies a family and not a licence. Every spelling of that
+    shape must be refused, and a leading "The" must not lift it.
+    """
+    for spelling in spellings:
+        for raw in (spelling, spelling.title(), f"The {spelling}",
+                    spelling.upper()):
+            assert normalize(raw, SOURCE_NAME).normalized is None, (
+                f"{raw!r} names the {family} family without a version and "
+                f"resolved anyway")
+
+
+@pytest.mark.parametrize("family,spellings", sorted(VERSIONED_FAMILIES.items()))
+def test_adding_a_version_makes_a_family_name_specific_again(family, spellings):
+    """The other half, and the reason the refusal is safe.
+
+    Refusing a family must never refuse a licence. A version turns any of these
+    back into a name that identifies one thing, and those must keep resolving --
+    that is what most real SBOMs actually carry.
+    """
+    versioned = {
+        "Apache": "Apache License 2.0",
+        "BSD": "BSD-3-Clause",
+        "GPL": "GPL-3.0-or-later",
+        "LGPL": "LGPL-2.1-or-later",
+        "AGPL": "AGPL-3.0-only",
+        "MPL": "MPL-2.0",
+        "EPL": "Eclipse Public License 2.0",
+        "CDDL": "CDDL-1.0",
+    }[family]
+    assert normalize(versioned, SOURCE_NAME).normalized is not None, versioned
