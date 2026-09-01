@@ -45,7 +45,20 @@ dependencies = [
 oslc = ["ospac>=1.4.3"]
 # ospac is in dev too, so CI exercises the real policy engine rather than
 # skipping the license layer's tests.
-dev = ["pytest", "ruff", "mypy", "types-PyYAML", "lxml-stubs", "ospac>=1.4.3"]
+# ruff and mypy are bounded because CI runs them with no configuration of
+# its own, so the rules in force are whatever the installed version
+# defaults to. Those defaults are not stable across minor releases: when
+# they grow, CI goes red on a pull request that changed nothing related to
+# the new rule. Bounded, an upgrade is a deliberate pull request whose
+# subject is the new findings.
+dev = [
+    "pytest",
+    "ruff>=0.16,<0.17",
+    "mypy>=2,<3",
+    "types-PyYAML",
+    "lxml-stubs",
+    "ospac>=1.4.3",
+]
 
 [project.scripts]
 ossbomer = "ossbomer.cli:main"

@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- ruff and mypy are bounded in the dev extra (#11). CI runs them with no
+  configuration of its own, so the rules in force were whatever the installed
+  version defaulted to, and those defaults are not stable across releases. When
+  they grow, CI goes red on a pull request that changed nothing related to the
+  new rule. Development tooling only; the published package is unaffected.
+
+## [Unreleased]
+
 ## [2.4.2] - 2026-08-21
 
 ### Changed
